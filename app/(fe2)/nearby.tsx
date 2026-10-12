@@ -1,7 +1,11 @@
-import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Alert, RefreshControl } from 'react-native';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { usePrivacyStore } from '../../store/usePrivacyStore';
+import { useSinglePress } from '../../hooks/useSinglePress';
+import { NearbySkeleton } from '../../components/common/Skeleton';
 
 type RadiusOption = 500 | 1000 | 2000 | 5000;
 type NearbyState = 'idle' | 'cooldown' | 'detected';
@@ -16,9 +20,28 @@ export default function NearbyScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [optIn, setOptIn] = useState(true);
+  const { settings, setNearbyFeatureEnabled } = usePrivacyStore();
+  const optIn = settings.nearbyFeatureEnabled;
   const [radius, setRadius] = useState<RadiusOption>(1000);
-  const [nearbyState] = useState<NearbyState>(MOCK_STATE);
+  const [nearbyState, setNearbyState] = useState<NearbyState>(MOCK_STATE);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setNearbyState((prev) => (prev === 'cooldown' ? 'detected' : 'idle'));
+      setIsRefreshing(false);
+    }, 1000);
+  }, 1000);
+
+  const handleSelectRadius = useSinglePress((r: RadiusOption) => setRadius(r), 300);
+  const handleCreateMeetup = useSinglePress(() => router.push('/(tabs)/meetups' as any), 600);
 
   const handleOptInToggle = (value: boolean) => {
     if (!value) {
@@ -27,18 +50,38 @@ export default function NearbyScreen() {
         t('fe2.nearby.disable_body'),
         [
           { text: t('fe2.nearby.cancel'), style: 'cancel' },
-          { text: t('fe2.nearby.disable_confirm'), style: 'destructive', onPress: () => setOptIn(false) },
+          {
+            text: t('fe2.nearby.disable_confirm'),
+            style: 'destructive',
+            onPress: () => setNearbyFeatureEnabled(false),
+          },
         ]
       );
     } else {
-      setOptIn(true);
+      setNearbyFeatureEnabled(true);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{t('fe2.nearby.intro_title')}</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+          progressBackgroundColor={colors.surface}
+        />
+      }
+    >
+      {isLoading ? (
+        <NearbySkeleton />
+      ) : (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t('fe2.nearby.intro_title')}</Text>
         <Text style={styles.cardDesc}>{t('fe2.nearby.intro_desc')}</Text>
       </View>
 
@@ -60,7 +103,7 @@ export default function NearbyScreen() {
               <TouchableOpacity
                 key={r}
                 style={[styles.radiusChip, radius === r && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
-                onPress={() => setRadius(r)}
+                onPress={() => handleSelectRadius(r)}
               >
                 <Text style={[styles.radiusText, radius === r && { color: colors.primary, fontWeight: '700' }]}>
                   {RADIUS_LABELS[r]}
@@ -83,7 +126,10 @@ export default function NearbyScreen() {
       {optIn && nearbyState === 'detected' && (
         <View style={[styles.card, { backgroundColor: colors.successLight, borderWidth: 1, borderColor: colors.success }]}>
           <Text style={[styles.label, { color: colors.success }]}>{t('fe2.nearby.detected_title')}</Text>
-          <TouchableOpacity style={[styles.createBtn, { backgroundColor: colors.success }]}>
+          <TouchableOpacity
+            style={[styles.createBtn, { backgroundColor: colors.success }]}
+            onPress={handleCreateMeetup}
+          >
             <Text style={styles.createBtnText}>{t('fe2.nearby.create_meetup')}</Text>
           </TouchableOpacity>
         </View>
@@ -98,6 +144,8 @@ export default function NearbyScreen() {
       )}
 
       <Text style={styles.privacyNote}>{t('fe2.nearby.privacy_note')}</Text>
+        </>
+      )}
     </ScrollView>
   );
 }

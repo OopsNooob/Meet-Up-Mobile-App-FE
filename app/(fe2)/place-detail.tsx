@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, RefreshControl } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useSinglePress } from '../../hooks/useSinglePress';
+import { PlaceDetailSkeleton } from '../../components/common/Skeleton';
 
 const MOCK_DETAIL = {
   placeId: 'p1', name: 'The Coffee House - Nguyễn Huệ',
@@ -23,16 +25,62 @@ export default function PlaceDetailScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
-  const place = MOCK_DETAIL;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [place, setPlace] = useState(MOCK_DETAIL);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setPlace((prev) => ({
+        ...prev,
+        avgEta: Math.max(5, prev.avgEta + (Math.random() > 0.5 ? 1 : -1)),
+        etaPerMember: prev.etaPerMember.map((m) => ({
+          ...m,
+          eta: Math.max(3, m.eta + (Math.random() > 0.5 ? 1 : -1)),
+        })),
+      }));
+      setIsRefreshing(false);
+    }, 1000);
+  }, 1000);
+
+  const handleOpenNavigation = useSinglePress(() => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert(t('fe2.common.error'), 'Could not open maps application');
+    });
+  }, 1000);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.name}>{place.name}</Text>
-      <Text style={styles.address}>{place.address}</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+          progressBackgroundColor={colors.surface}
+        />
+      }
+    >
+      {isLoading ? (
+        <PlaceDetailSkeleton />
+      ) : (
+        <>
+          <Text style={styles.name}>{place.name}</Text>
+          <Text style={styles.address}>{place.address}</Text>
 
-      {/* Opening hours */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('fe2.place_detail.opening_hours_section')}</Text>
+          {/* Opening hours */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t('fe2.place_detail.opening_hours_section')}</Text>
         {place.isOpenNow === true && (
           <View style={[styles.badge, { backgroundColor: colors.successLight }]}>
             <Text style={[styles.badgeText, { color: colors.success }]}>{t('fe2.common.open_now')}</Text>
@@ -87,9 +135,14 @@ export default function PlaceDetailScreen() {
         ))}
       </View>
 
-      <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.primary }]}>
+      <TouchableOpacity
+        style={[styles.navBtn, { backgroundColor: colors.primary }]}
+        onPress={handleOpenNavigation}
+      >
         <Text style={styles.navBtnText}>{t('fe2.common.send_directions')}</Text>
       </TouchableOpacity>
+        </>
+      )}
     </ScrollView>
   );
 }

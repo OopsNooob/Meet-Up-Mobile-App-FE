@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useSinglePress } from '../../hooks/useSinglePress';
 
 export type ScaleLabel = 'exact' | 'batch' | 'cluster';
 
@@ -33,6 +34,9 @@ export function PlaceCard({ place, onPress, onWhyPress }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  const handlePress = useSinglePress(() => onPress?.(place), 600);
+  const handleWhyPress = useSinglePress(() => onWhyPress?.(place), 600);
+
   const SCALE_BG: Record<ScaleLabel, string> = {
     exact: colors.successLight,
     batch: colors.primaryLight,
@@ -46,7 +50,7 @@ export function PlaceCard({ place, onPress, onWhyPress }: Props) {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress?.(place)} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.85}>
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -110,7 +114,7 @@ export function PlaceCard({ place, onPress, onWhyPress }: Props) {
       </View>
 
       {/* Why button */}
-      <TouchableOpacity style={[styles.whyBtn, { borderTopColor: colors.divider }]} onPress={() => onWhyPress?.(place)}>
+      <TouchableOpacity style={[styles.whyBtn, { borderTopColor: colors.divider }]} onPress={handleWhyPress}>
         <Text style={[styles.whyBtnText, { color: colors.purple }]}>{t('fe2.recommendation.why_button')}</Text>
       </TouchableOpacity>
     </TouchableOpacity>

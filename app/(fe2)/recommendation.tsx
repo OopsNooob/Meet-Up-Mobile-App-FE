@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useSinglePress } from '../../hooks/useSinglePress';
 import { PlaceCard, PlaceItem } from '../../components/meetup/PlaceCard';
+import { PlaceCardSkeleton } from '../../components/common/Skeleton';
 
 const MOCK_PLACES: PlaceItem[] = [
   { placeId: 'p1', rank: 1, name: 'The Coffee House - Nguyễn Huệ', address: '86 Nguyễn Huệ, Q.1, TP.HCM', rating: 4.5, isOpenNow: true, avgEta: 12, maxEta: 18, scaleLabel: 'exact', etaPerMember: [{ userId: 'u1', name: 'Bạn', eta: 10 }, { userId: 'u2', name: 'Việt', eta: 18 }, { userId: 'u3', name: 'Minh', eta: 8 }] },
@@ -19,15 +21,40 @@ export default function RecommendationScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [places, setPlaces] = useState<PlaceItem[]>(MOCK_PLACES);
   const [filterOpenNow, setFilterOpenNow] = useState(false);
 
-  const filteredPlaces = filterOpenNow ? MOCK_PLACES.filter((p) => p.isOpenNow === true) : MOCK_PLACES;
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 900);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const handlePlacePress = (place: PlaceItem) =>
-    router.push({ pathname: '/(fe2)/place-detail' as any, params: { placeId: place.placeId } });
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setPlaces((prev) =>
+        prev.map((p) => ({
+          ...p,
+          avgEta: Math.max(5, p.avgEta + (Math.random() > 0.5 ? 1 : -1)),
+        }))
+      );
+      setIsRefreshing(false);
+    }, 1100);
+  }, 1000);
 
-  const handleWhyPress = (place: PlaceItem) =>
-    router.push({ pathname: '/(fe2)/ai-explanation' as any, params: { placeId: place.placeId, placeName: place.name } });
+  const filteredPlaces = filterOpenNow ? places.filter((p) => p.isOpenNow === true) : places;
+
+  const handlePlacePress = useSinglePress((place: PlaceItem) =>
+    router.push({ pathname: '/(fe2)/place-detail' as any, params: { placeId: place.placeId } })
+  );
+
+  const handleWhyPress = useSinglePress((place: PlaceItem) =>
+    router.push({ pathname: '/(fe2)/ai-explanation' as any, params: { placeId: place.placeId, placeName: place.name } })
+  );
+
+  const toggleFilter = useSinglePress(() => setFilterOpenNow((v) => !v), 300);
 
   return (
     <View style={styles.container}>
@@ -40,7 +67,7 @@ export default function RecommendationScreen() {
       <View style={styles.filterBar}>
         <TouchableOpacity
           style={[styles.filterChip, filterOpenNow && { backgroundColor: colors.successLight, borderColor: colors.success }]}
-          onPress={() => setFilterOpenNow((v) => !v)}
+          onPress={toggleFilter}
         >
           <Text style={[styles.filterText, filterOpenNow && { color: colors.success, fontWeight: '700' }]}>
             {t('fe2.recommendation.filter_open_now')}
@@ -49,17 +76,34 @@ export default function RecommendationScreen() {
         <Text style={styles.resultCount}>{t('fe2.recommendation.result_count', { count: filteredPlaces.length })}</Text>
       </View>
 
-      <FlatList
-        data={filteredPlaces}
-        keyExtractor={(item) => item.placeId}
-        renderItem={({ item }) => <PlaceCard place={item} onPress={handlePlacePress} onWhyPress={handleWhyPress} />}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>{t('fe2.recommendation.empty_filtered')}</Text>
-          </View>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.list}>
+          <PlaceCardSkeleton />
+          <PlaceCardSkeleton />
+          <PlaceCardSkeleton />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredPlaces}
+          keyExtractor={(item) => item.placeId}
+          renderItem={({ item }) => <PlaceCard place={item} onPress={handlePlacePress} onWhyPress={handleWhyPress} />}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+              progressBackgroundColor={colors.surface}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>{t('fe2.recommendation.empty_filtered')}</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
 import { scheduleMockNotification, useFCM } from '../../hooks/useFCM';
+import { useSinglePress } from '../../hooks/useSinglePress';
 import { useMemo } from 'react';
 
 export default function NotificationsTestScreen() {
@@ -12,9 +13,9 @@ export default function NotificationsTestScreen() {
   // Khởi chạy FCM listener & xin quyền (bắt buộc trên Android 13+)
   useFCM();
 
-  const handleTest = (type: 'meetup_invite' | 'meetup_finalized' | 'meetup_reminder' | 'meetup_cancelled') => {
+  const handleTest = useSinglePress((type: 'meetup_invite' | 'meetup_finalized' | 'meetup_reminder' | 'meetup_cancelled') => {
     scheduleMockNotification(type, 'test-meetup-id');
-  };
+  }, 1000);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

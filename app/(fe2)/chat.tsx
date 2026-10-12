@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
 import { ChatBubble, ChatMessage, MessageStatus } from '../../components/meetup/ChatBubble';
 import { useSocket } from '../../hooks/useSocket';
+import { useSinglePress } from '../../hooks/useSinglePress';
 
 const CURRENT_USER_ID = 'u1';
 const CURRENT_USER_NAME = 'Bạn';
@@ -27,7 +28,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { emit } = useSocket();
 
-  const handleSend = () => {
+  const handleSend = useSinglePress(() => {
     const text = inputText.trim();
     if (!text) return;
     const newMsg: ChatMessage = { id: `m_${Date.now()}`, userId: CURRENT_USER_ID, userName: CURRENT_USER_NAME, text, timestamp: new Date(), status: 'pending', isOwn: true };
@@ -37,14 +38,14 @@ export default function ChatScreen() {
       setMessages((prev) => prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m)));
     }, 800);
     emit('chat:send', { meetupId: 'meetup-1', text });
-  };
+  }, 600);
 
-  const handleRetry = (messageId: string) => {
+  const handleRetry = useSinglePress((messageId: string) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: 'pending' as MessageStatus } : m)));
     setTimeout(() => {
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m)));
     }, 800);
-  };
+  }, 600);
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>

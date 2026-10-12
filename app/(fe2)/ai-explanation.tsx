@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useSinglePress } from '../../hooks/useSinglePress';
 
 type ExplainState = 'loading' | 'success' | 'fallback';
 
@@ -24,6 +25,8 @@ export default function AiExplanationScreen() {
   const [state, setState] = useState<ExplainState>('loading');
   const [explanation, setExplanation] = useState('');
 
+  const handleClose = useSinglePress(() => router.back(), 500);
+
   useEffect(() => {
     const shouldFail = Math.random() < 0.3;
     const timer = setTimeout(() => {
@@ -38,7 +41,7 @@ export default function AiExplanationScreen() {
       <View style={styles.modal}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('fe2.ai_explanation.screen_title')}</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
             <Text style={[styles.closeText, { color: colors.placeholder }]}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -75,7 +78,7 @@ export default function AiExplanationScreen() {
           )}
         </ScrollView>
 
-        <TouchableOpacity style={[styles.okBtn, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
+        <TouchableOpacity style={[styles.okBtn, { backgroundColor: colors.primary }]} onPress={handleClose}>
           <Text style={styles.okBtnText}>{t('fe2.common.understood')}</Text>
         </TouchableOpacity>
       </View>

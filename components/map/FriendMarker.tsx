@@ -1,11 +1,15 @@
 /**
  * FriendMarker — Marker bạn bè trên bản đồ (FE-05)
- * Dark mode: màu bubble theo theme (fresh/stale không đổi vì là overlay trên map)
- * i18n: nhãn stale và thời gian
+ * Hỗ trợ độ chính xác vị trí theo contract Backend 1 S2:
+ * - Precise: ghim chính xác với độ chính xác gốc
+ * - Approximate: làm tròn 2 số thập phân (~1.1 km), hiển thị huy hiệu khiên bảo mật
  */
 import { View, Text, StyleSheet } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
+import { Shield } from 'lucide-react-native';
+import { useSinglePress } from '../../hooks/useSinglePress';
+import { LocationPrecision } from '../../types/privacy';
 
 export type Friend = {
   userId: string;
@@ -15,6 +19,7 @@ export type Friend = {
   accuracy: number;
   updatedAt: Date;
   isStale: boolean;
+  precision?: LocationPrecision;
 };
 
 type Props = {
@@ -22,12 +27,14 @@ type Props = {
   onPress?: (friend: Friend) => void;
 };
 
-// Màu marker giữ cứng vì overlay trên bản đồ cần contrast cao bất kể theme app
+// Màu marker overlay trên bản đồ
 const FRESH_COLOR = '#3b82f6';
 const STALE_COLOR = '#f97316';
+const APPROX_COLOR = '#8b5cf6'; // Tím cho approximate privacy location
 
 export function FriendMarker({ friend, onPress }: Props) {
   const { t } = useTranslation();
+  const handlePress = useSinglePress(() => onPress?.(friend), 600);
 
   function formatUpdatedAt(date: Date): string {
     const diffMs = Date.now() - date.getTime();
@@ -37,21 +44,35 @@ export function FriendMarker({ friend, onPress }: Props) {
     return t('fe2.map.hours_ago', { count: Math.floor(diffMin / 60) });
   }
 
-  const bubbleColor = friend.isStale ? STALE_COLOR : FRESH_COLOR;
+  const isApproximate = friend.precision === 'approximate' || friend.accuracy >= 1000;
+  let bubbleColor = friend.isStale ? STALE_COLOR : FRESH_COLOR;
+  if (isApproximate && !friend.isStale) {
+    bubbleColor = APPROX_COLOR;
+  }
 
   return (
     <Marker
       coordinate={{ latitude: friend.lat, longitude: friend.lng }}
-      onPress={() => onPress?.(friend)}
+      onPress={handlePress}
     >
       <View style={styles.container}>
         <View style={[styles.bubble, { backgroundColor: bubbleColor }]}>
-          <Text style={styles.name} numberOfLines={1}>{friend.name}</Text>
+          <View style={styles.titleRow}>
+            {isApproximate && <Shield size={12} color="#fff" style={{ marginRight: 3 }} />}
+            <Text style={styles.name} numberOfLines={1}>{friend.name}</Text>
+          </View>
+
           <Text style={styles.time}>{formatUpdatedAt(friend.updatedAt)}</Text>
+
           {friend.isStale && (
             <Text style={styles.staleLabel}>{t('fe2.common.stale_label')}</Text>
           )}
-          {friend.accuracy > 100 && !friend.isStale && (
+
+          {isApproximate && !friend.isStale && (
+            <Text style={styles.approxLabel}>{t('fe2.map.precision_approximate')}</Text>
+          )}
+
+          {!isApproximate && friend.accuracy > 100 && !friend.isStale && (
             <Text style={styles.accuracyWarn}>~{Math.round(friend.accuracy)}m</Text>
           )}
         </View>
@@ -63,10 +84,31 @@ export function FriendMarker({ friend, onPress }: Props) {
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center' },
-  bubble: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 130, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 },
+  bubble: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: 145,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   name: { color: '#fff', fontWeight: '700', fontSize: 12 },
   time: { color: 'rgba(255,255,255,0.85)', fontSize: 10, marginTop: 2 },
   staleLabel: { color: '#fff', fontSize: 10, fontWeight: '600', marginTop: 2 },
+  approxLabel: { color: '#ede9fe', fontSize: 9, fontWeight: '700', marginTop: 2 },
   accuracyWarn: { color: '#fde68a', fontSize: 10, marginTop: 2 },
-  pin: { width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
+  pin: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
 });
