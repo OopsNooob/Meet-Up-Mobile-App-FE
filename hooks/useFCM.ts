@@ -15,12 +15,13 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/store/useAuthStore';
 import { routes } from '@/constants/routes';
 
-// ──── Expo Go trên Android không hỗ trợ expo-notifications ────────────────
-// Từ SDK 53, chỉ cần import expo-notifications trong Expo Go (Android) là throw lỗi.
-// Vì vậy chỉ require khi chạy development build / bản build thật; trong Expo Go thì FCM tắt.
-export const isNotificationsSupported = !(
-  Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient
-);
+// ──── Nơi không hỗ trợ expo-notifications ─────────────────────────────────
+// - Expo Go trên Android (SDK 53+): chỉ cần import là throw lỗi.
+// - Web: không có push notification (getLastNotificationResponse... không tồn tại).
+// Chỉ require khi chạy development build / bản build thật trên mobile; còn lại FCM tắt.
+export const isNotificationsSupported =
+  Platform.OS !== 'web' &&
+  !(Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient);
 
 const Notifications: typeof import('expo-notifications') | null = isNotificationsSupported
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -28,7 +29,7 @@ const Notifications: typeof import('expo-notifications') | null = isNotification
   : null;
 
 if (!Notifications) {
-  console.warn('[FCM] Expo Go (Android) không hỗ trợ notification — cần development build để test FE-13.');
+  console.warn('[FCM] Notification bị tắt (web / Expo Go Android) — cần development build để test FE-13.');
 }
 
 // ──── Cấu hình handler notification khi app ở foreground ──────────────────
