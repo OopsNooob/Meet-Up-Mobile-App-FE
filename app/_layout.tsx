@@ -2,34 +2,26 @@ import { useEffect } from 'react';
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme, type Theme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import '@/locales/i18n'; // Khởi tạo i18n
+import '@/locales/i18n';
 import { ToastProvider } from '@/components/common';
 import { useFCM, handleInitialNotification } from '@/hooks/useFCM';
 import { useTheme } from '@/hooks/useTheme';
 import { selectIsLoggedIn, useAuthStore } from '@/store/useAuthStore';
 
-// Giữ splash cho tới khi biết trạng thái đăng nhập (tránh nháy màn login rồi mới vào app).
+// Navigator phải render ngay lần đầu; splash che màn hình tới khi hydrate xong
 SplashScreen.preventAutoHideAsync();
 
-/**
- * Root navigator — chỉ chọn luồng theo trạng thái đăng nhập:
- *   - (auth): login/register khi chưa đăng nhập
- *   - (app):  toàn bộ màn sau đăng nhập (tabs + các màn stack)
- * Guard dùng Stack.Protected: guard đổi sang false thì tự chuyển luồng và xóa history.
- */
 export default function RootLayout() {
   const isLoggedIn = useAuthStore(selectIsLoggedIn);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const { colors, isDark } = useTheme();
 
-  // FE-13: Khởi tạo FCM listener toàn app
   useFCM();
 
   useEffect(() => {
     // TODO FE-01: hydrate phiên đăng nhập thật từ secure store
     useAuthStore.setState({ isHydrated: true });
 
-    // FE-13: Xử lý notification khi app mở từ killed state
     handleInitialNotification();
   }, []);
 
@@ -51,7 +43,6 @@ export default function RootLayout() {
     },
   };
 
-  // Luôn render navigator ngay lần đầu (Expo Router yêu cầu) — splash che trong lúc chờ hydrate.
   return (
     <ThemeProvider value={navTheme}>
       <ToastProvider>

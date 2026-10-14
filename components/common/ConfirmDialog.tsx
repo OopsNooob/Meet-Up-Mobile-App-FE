@@ -12,20 +12,11 @@ export interface ConfirmDialogProps {
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** 'danger' cho thao tác phá hủy: hủy meetup, khóa tài khoản... */
   tone?: 'primary' | 'danger';
-  /**
-   * Nếu trả về Promise: nút xác nhận hiện loading, dialog giữ mở tới khi xong.
-   * Promise reject → hiện lỗi ngay trong dialog, không đóng.
-   */
   onConfirm: () => void | Promise<unknown>;
   onCancel: () => void;
 }
 
-/**
- * Hộp thoại xác nhận cho thao tác quan trọng (hủy meetup, chốt địa điểm, khóa tài khoản admin...).
- * Màn hình tự giữ state `visible`; đóng dialog trong onConfirm/onCancel.
- */
 export function ConfirmDialog({
   visible,
   title,
@@ -63,8 +54,7 @@ export function ConfirmDialog({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel} statusBarTranslucent>
       <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={handleCancel}>
-        {/* Chặn sự kiện bấm xuyên qua dialog */}
-        <Pressable style={[styles.dialog, { backgroundColor: colors.surface }]} onPress={() => {}}>
+        <Pressable style={[styles.dialog, { backgroundColor: colors.surface }]} onPress={() => {}} /* chặn bấm xuyên xuống backdrop */>
           <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
             {title}
           </Text>

@@ -15,10 +15,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/store/useAuthStore';
 import { routes } from '@/constants/routes';
 
-// ──── Nơi không hỗ trợ expo-notifications ─────────────────────────────────
-// - Expo Go trên Android (SDK 53+): chỉ cần import là throw lỗi.
-// - Web: không có push notification (getLastNotificationResponse... không tồn tại).
-// Chỉ require khi chạy development build / bản build thật trên mobile; còn lại FCM tắt.
+// Web và Expo Go Android (SDK 53+) không hỗ trợ expo-notifications — import là lỗi
 export const isNotificationsSupported =
   Platform.OS !== 'web' &&
   !(Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient);

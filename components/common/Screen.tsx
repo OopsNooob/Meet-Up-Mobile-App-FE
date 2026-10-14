@@ -15,26 +15,16 @@ import { spacing } from '@/theme';
 
 export interface ScreenProps {
   children: ReactNode;
-  /** Bọc nội dung trong ScrollView. Không dùng khi bên trong đã có FlatList/Map. */
   scroll?: boolean;
-  /** Padding chuẩn spacing.lg quanh nội dung (mặc định true). */
   padded?: boolean;
-  /**
-   * Cạnh cần né safe area. Mặc định ['left', 'right', 'bottom'] — phù hợp màn Stack có header.
-   * - Màn trong bottom tab: edges={['left', 'right']} (tab bar đã xử lý cạnh dưới)
-   * - Màn không có header (login...): edges={['top', 'left', 'right', 'bottom']}
-   */
   edges?: Edge[];
-  /** Bật nếu màn có ô nhập liệu để bàn phím không che. */
   keyboardAvoiding?: boolean;
   refreshControl?: React.ReactElement<RefreshControlProps>;
-  /** Nội dung cố định ở đáy (nút submit...), không cuộn theo. */
   footer?: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/** Khung chuẩn cho mọi màn hình: nền theo theme, safe area, padding, scroll tùy chọn. */
 export function Screen({
   children,
   scroll = false,

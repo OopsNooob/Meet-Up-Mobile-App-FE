@@ -1,30 +1,19 @@
-/**
- * Pattern trạng thái dữ liệu dùng chung cho mọi màn hình.
- * Một màn hình luôn ở đúng 1 trong 4 trạng thái: loading / empty / error / success.
- * Render bằng `<AsyncView state={...}>` (components/common/AsyncView.tsx).
- *
- * Nguyên tắc: không giả vờ realtime — nếu dữ liệu cũ hoặc thiếu thì phải nói rõ lý do
- * (error.code, isStale, updatedAt).
- */
-
-/** Lý do dữ liệu không có / không tải được. Mỗi code có thông điệp riêng trong i18n `errors.<code>`. */
 export const APP_ERROR_CODES = [
-  'offline', // thiết bị mất mạng
-  'network', // gọi server thất bại
+  'offline',
+  'network',
   'timeout',
-  'unauthorized', // hết phiên đăng nhập
-  'forbidden', // không có quyền (vd. không phải thành viên meetup)
+  'unauthorized',
+  'forbidden',
   'not_found',
   'server',
-  'gps_denied', // người dùng từ chối quyền vị trí
-  'gps_off', // tắt dịch vụ vị trí
+  'gps_denied',
+  'gps_off',
   'unknown',
 ] as const;
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];
 
 export type AppError = {
   code: AppErrorCode;
-  /** Thông điệp cụ thể (đã dịch) — nếu bỏ trống sẽ dùng thông điệp mặc định theo code. */
   message?: string;
 };
 
@@ -35,9 +24,7 @@ export type AsyncState<T> =
   | {
       status: 'success';
       data: T;
-      /** ISO time dữ liệu được cập nhật lần cuối — hiển thị cho người dùng nếu có. */
       updatedAt?: string;
-      /** true nếu dữ liệu đã cũ (vd. vị trí > 5 phút, đang offline dùng cache). */
       isStale?: boolean;
     };
 
@@ -48,7 +35,6 @@ export const asyncError = (code: AppErrorCode, message?: string): AsyncState<nev
   error: { code, message },
 });
 
-/** Tạo state success, tự chuyển sang `empty` nếu data là mảng rỗng / null. */
 export function asyncFromData<T>(
   data: T | null | undefined,
   meta?: { updatedAt?: string; isStale?: boolean },
@@ -61,7 +47,6 @@ function isAppErrorCode(value: unknown): value is AppErrorCode {
   return typeof value === 'string' && (APP_ERROR_CODES as readonly string[]).includes(value);
 }
 
-/** Chuẩn hóa mọi lỗi (throw từ service/axios/...) về AppError. */
 export function toAppError(err: unknown): AppError {
   if (err && typeof err === 'object') {
     const e = err as { code?: unknown; message?: unknown; response?: { status?: number } };

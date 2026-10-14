@@ -34,7 +34,6 @@ const DEMO_STATES: Record<string, AsyncState<string[]>> = {
   stale: { status: 'success', data: ['Huy', 'Linh'], isStale: true, updatedAt: new Date(Date.now() - 7 * 60_000).toISOString() },
 };
 
-/** Gallery các component dùng chung — chỉ để xem/kiểm tra, không phải màn hình sản phẩm. */
 export default function ComponentsGalleryScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();

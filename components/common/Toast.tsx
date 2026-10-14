@@ -1,9 +1,3 @@
-/**
- * Toast — thông báo ngắn tự ẩn. ToastProvider đã gắn sẵn ở app/_layout.tsx.
- *
- *   const toast = useToast();
- *   toast.show(t('meetup.saved'), { tone: 'success' });
- */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +20,6 @@ const TONE_ICONS: Record<ToastTone, LucideIcon> = {
   danger: XCircle,
 };
 
-/** Khoảng cách từ đáy để không đè lên bottom tab bar. */
 const BOTTOM_OFFSET = 72;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -56,7 +49,7 @@ export function useToast(): ToastApi {
 function ToastView({ item, onHide }: { item: ToastItem; onHide: () => void }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  // useState thay vì useRef: React Compiler không cho đọc ref trong lúc render
+  // useState thay vì useRef: React Compiler không cho đọc ref khi render
   const [anim] = useState(() => new Animated.Value(0));
   const { fg, bg } = toneColors(colors, item.tone);
   const Icon = TONE_ICONS[item.tone];

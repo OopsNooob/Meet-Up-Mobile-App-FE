@@ -6,7 +6,6 @@ import { radius, spacing } from '@/theme';
 
 export interface CardProps {
   children: ReactNode;
-  /** Có onPress thì card thành nút bấm được. */
   onPress?: () => void;
   padded?: boolean;
   style?: StyleProp<ViewStyle>;

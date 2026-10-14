@@ -24,12 +24,7 @@ import type { Tone } from '@/theme';
 import type { MeetupMemberStatus, MeetupStatus, RouteStrategy } from '@/types/domain';
 import { Badge } from './Badge';
 
-/**
- * Mọi trạng thái nghiệp vụ cần hiển thị dạng nhãn. Thêm trạng thái mới vào STATUS_CONFIG
- * + i18n `status.<kind>` thay vì tự tạo Badge với màu riêng.
- */
 export type StatusKind =
-  // Vị trí / kết nối (FE-04, FE-05, FE-06, FE-19)
   | 'live'
   | 'stale'
   | 'approximate'
@@ -38,11 +33,8 @@ export type StatusKind =
   | 'reconnecting'
   | 'gps_denied'
   | 'gps_off'
-  // Nhãn quy mô kết quả gợi ý (FE-10)
   | RouteStrategy
-  // Trạng thái meetup (FE-07) — dùng `meetup_${meetup.status}`
   | `meetup_${MeetupStatus}`
-  // Trạng thái thành viên meetup (FE-08)
   | `member_${Extract<MeetupMemberStatus, 'invited' | 'accepted' | 'declined'>}`;
 
 const STATUS_CONFIG: Record<StatusKind, { tone: Tone; icon: LucideIcon }> = {
@@ -73,7 +65,6 @@ const STATUS_CONFIG: Record<StatusKind, { tone: Tone; icon: LucideIcon }> = {
 
 export interface StatusLabelProps {
   kind: StatusKind;
-  /** Thông tin thêm sau nhãn, ví dụ "7 phút trước". */
   detail?: string;
   style?: StyleProp<ViewStyle>;
 }

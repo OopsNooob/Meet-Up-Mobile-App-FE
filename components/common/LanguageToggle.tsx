@@ -6,7 +6,6 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 import { useAppStore } from '@/store/useAppStore';
 import { fontSize, fontWeight, iconSize, radius, spacing } from '@/theme';
 
-/** Nút đổi ngôn ngữ vi/en — dùng ở headerRight. Cập nhật cả i18n lẫn useAppStore. */
 export function LanguageToggle() {
   const { colors } = useTheme();
   const { i18n } = useTranslation();

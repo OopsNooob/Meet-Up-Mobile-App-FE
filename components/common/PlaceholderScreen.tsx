@@ -16,20 +16,14 @@ export interface PlaceholderLink {
 }
 
 export interface PlaceholderScreenProps {
-  /** Mã task sẽ làm màn này, vd. "FE-07". */
   task: string;
   title: string;
   description?: string;
-  /** Link sang các màn liên quan để test điều hướng trong lúc chưa có UI thật. */
   links?: PlaceholderLink[];
   children?: ReactNode;
   edges?: ScreenProps['edges'];
 }
 
-/**
- * Màn hình tạm cho route đã khai báo nhưng chưa làm.
- * Người làm task thay toàn bộ file route bằng màn hình thật (giữ nguyên path).
- */
 export function PlaceholderScreen({ task, title, description, links, children, edges }: PlaceholderScreenProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();

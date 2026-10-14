@@ -30,6 +30,5 @@ export const useAuthStore = create<AuthState>((set) => ({
   setHydrated: (state) => set({ isHydrated: state }),
 }));
 
-/** Selector dùng cho guard điều hướng. */
 export const selectIsLoggedIn = (s: AuthState) => s.user !== null;
 export const selectIsAdmin = (s: AuthState) => s.user?.role === 'admin';

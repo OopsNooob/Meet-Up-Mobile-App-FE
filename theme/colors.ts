@@ -1,20 +1,15 @@
-/**
- * Color tokens cho light/dark. Không dùng mã màu trực tiếp trong component —
- * luôn lấy qua `useTheme().colors`.
- */
 export type ColorTokens = {
   background: string;
-  surface: string; // card, panel
-  surfaceAlt: string; // input, chip, subtle
+  surface: string;
+  surfaceAlt: string;
   text: string;
   subtext: string;
   placeholder: string;
   border: string;
   divider: string;
-  // Semantic
   primary: string;
   primaryLight: string;
-  onPrimary: string; // chữ/icon trên nền primary, success, danger...
+  onPrimary: string;
   success: string;
   successLight: string;
   warning: string;
@@ -27,12 +22,11 @@ export type ColorTokens = {
   neutralLight: string;
   purple: string;
   purpleLight: string;
-  // Special
-  ownBubble: string; // chat bubble gửi đi
-  otherBubble: string; // chat bubble nhận
+  ownBubble: string;
+  otherBubble: string;
   ownBubbleText: string;
   otherBubbleText: string;
-  overlay: string; // modal backdrop
+  overlay: string;
 };
 
 export const LIGHT: ColorTokens = {
@@ -97,7 +91,6 @@ export const DARK: ColorTokens = {
   overlay: 'rgba(0,0,0,0.7)',
 };
 
-/** Các tone ngữ nghĩa dùng chung cho Badge/StatusLabel/Toast. */
 export type Tone = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'purple';
 
 export function toneColors(colors: ColorTokens, tone: Tone): { fg: string; bg: string } {

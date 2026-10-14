@@ -4,7 +4,6 @@ import { Calendar, Map, User, Users } from 'lucide-react-native';
 import { LanguageToggle } from '@/components/common';
 import { useTheme } from '@/hooks/useTheme';
 
-/** Bottom tabs của luồng chính: Bản đồ · Meetup · Bạn bè · Hồ sơ. */
 export default function TabLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();

@@ -1,7 +1,3 @@
-/**
- * useTheme — Trả về color token theo theme hiện tại (light/dark).
- * Token màu định nghĩa ở `theme/colors.ts`; spacing/radius/fontSize ở `theme/tokens.ts`.
- */
 import { useMemo } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { DARK, LIGHT } from '@/theme/colors';

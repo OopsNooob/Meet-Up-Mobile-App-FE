@@ -13,7 +13,6 @@ export interface AvatarProps {
 
 const FALLBACK_TONES: Tone[] = ['primary', 'success', 'warning', 'info', 'purple', 'danger'];
 
-/** Lấy chữ cái đầu: "Nguyễn Văn Việt" → "NV"... dùng từ đầu + từ cuối → "NV" */
 export function getInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
@@ -28,7 +27,6 @@ function toneFor(name: string): Tone {
   return FALLBACK_TONES[Math.abs(hash) % FALLBACK_TONES.length];
 }
 
-/** Ảnh đại diện; không có ảnh hoặc ảnh lỗi thì hiện chữ cái đầu tên. */
 export function Avatar({ name, uri, size = 'md', style }: AvatarProps) {
   const { colors } = useTheme();
   const [failed, setFailed] = useState(false);

@@ -13,7 +13,6 @@ export interface ButtonProps {
   variant?: ButtonVariant;
   size?: 'md' | 'sm';
   icon?: LucideIcon;
-  /** Hiện spinner và khóa nút. */
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
@@ -21,10 +20,6 @@ export interface ButtonProps {
   testID?: string;
 }
 
-/**
- * Nút chuẩn của app. Đã chống double-tap (useSinglePress) — nếu onPress trả về Promise
- * thì nút khóa tới khi Promise xong.
- */
 export function Button({
   label,
   onPress,

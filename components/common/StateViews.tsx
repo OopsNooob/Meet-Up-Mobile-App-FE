@@ -1,8 +1,3 @@
-/**
- * LoadingState / EmptyState / ErrorState — 3 trạng thái "không có dữ liệu" dùng chung.
- * Thường không gọi trực tiếp mà để <AsyncView> chọn; gọi trực tiếp khi màn hình
- * cần trạng thái riêng (vd. GPS bị từ chối trên bản đồ).
- */
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -23,11 +18,8 @@ import { fontSize, fontWeight, iconSize, spacing } from '@/theme';
 import type { AppError, AppErrorCode } from '@/types/async';
 import { Button } from './Button';
 
-// ─── Loading ──────────────────────────────────────────────────────────────
-
 export interface LoadingStateProps {
   message?: string;
-  /** Skeleton thay cho spinner (vd. PlaceCardSkeleton) — ưu tiên dùng cho danh sách. */
   skeleton?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
@@ -43,8 +35,6 @@ export function LoadingState({ message, skeleton, style }: LoadingStateProps) {
     </View>
   );
 }
-
-// ─── Empty ────────────────────────────────────────────────────────────────
 
 export interface EmptyStateProps {
   title: string;
@@ -67,8 +57,6 @@ export function EmptyState({ title, description, icon: Icon = Inbox, actionLabel
   );
 }
 
-// ─── Error ────────────────────────────────────────────────────────────────
-
 const ERROR_ICONS: Record<AppErrorCode, LucideIcon> = {
   offline: WifiOff,
   network: WifiOff,
@@ -83,9 +71,7 @@ const ERROR_ICONS: Record<AppErrorCode, LucideIcon> = {
 };
 
 export interface ErrorStateProps {
-  /** Lỗi chuẩn hóa — tự chọn icon + tiêu đề + mô tả theo `error.code`. */
   error?: AppError;
-  /** Ghi đè tiêu đề/mô tả mặc định. */
   title?: string;
   message?: string;
   onRetry?: () => void | Promise<unknown>;

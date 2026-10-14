@@ -1,13 +1,9 @@
-/**
- * Kích thước dùng chung (không phụ thuộc light/dark).
- * Component không hardcode số — dùng các token dưới đây.
- */
 export const spacing = {
   xxs: 2,
   xs: 4,
   sm: 8,
   md: 12,
-  lg: 16, // padding chuẩn của màn hình
+  lg: 16,
   xl: 24,
   xxl: 32,
   xxxl: 48,
@@ -24,7 +20,7 @@ export const radius = {
 export const fontSize = {
   xs: 11,
   sm: 13,
-  md: 15, // body
+  md: 15,
   lg: 17,
   xl: 20,
   xxl: 24,
@@ -45,7 +41,6 @@ export const iconSize = {
   xl: 48,
 } as const;
 
-/** Chiều cao control (Button, TextField) để các form thẳng hàng. */
 export const controlHeight = {
   sm: 36,
   md: 48,

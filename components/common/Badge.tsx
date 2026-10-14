@@ -10,7 +10,6 @@ export interface BadgeProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/** Nhãn nhỏ dạng pill. Với trạng thái nghiệp vụ, dùng <StatusLabel> thay vì tự chọn màu. */
 export function Badge({ label, tone = 'neutral', icon: Icon, style }: BadgeProps) {
   const { colors } = useTheme();
   const { fg, bg } = toneColors(colors, tone);

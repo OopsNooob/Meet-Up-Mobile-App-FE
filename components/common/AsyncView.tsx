@@ -8,19 +8,12 @@ import { StatusLabel } from './StatusLabel';
 
 export interface AsyncViewProps<T> {
   state: AsyncState<T>;
-  /** Render khi có dữ liệu. */
   children: (data: T) => ReactNode;
   onRetry?: () => void | Promise<unknown>;
   loading?: LoadingStateProps;
-  /** Nội dung trạng thái rỗng — nên luôn truyền title riêng cho từng màn. */
   empty?: Partial<EmptyStateProps>;
 }
 
-/**
- * Render thống nhất 4 trạng thái loading / empty / error / success.
- * Khi success nhưng `isStale`, tự hiện nhãn "dữ liệu cũ" kèm thời điểm cập nhật
- * để không giả vờ dữ liệu là realtime.
- */
 export function AsyncView<T>({ state, children, onRetry, loading, empty }: AsyncViewProps<T>) {
   const { t } = useTranslation();
 

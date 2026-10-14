@@ -5,9 +5,7 @@ import { controlHeight, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   label?: string;
-  /** Thông báo lỗi — có giá trị thì viền đỏ và hiện dưới ô nhập. */
   error?: string | null;
-  /** Gợi ý hiển thị khi không có lỗi. */
   hint?: string;
   containerStyle?: StyleProp<ViewStyle>;
 }

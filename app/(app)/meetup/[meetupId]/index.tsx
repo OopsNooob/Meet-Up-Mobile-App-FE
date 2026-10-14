@@ -6,7 +6,6 @@ import { routes, type MeetupRouteParams } from '@/constants/routes';
 import { spacing } from '@/theme';
 
 // TODO FE-07: chi tiết meetup — thành viên, trạng thái, sửa/hủy (ConfirmDialog).
-// Đây cũng là đích của deep link mobile://meetup/:meetupId (FE-13).
 export default function MeetupDetailScreen() {
   const { t } = useTranslation();
   const { meetupId } = useLocalSearchParams<MeetupRouteParams>();
