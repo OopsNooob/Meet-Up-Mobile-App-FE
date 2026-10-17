@@ -1,44 +1,61 @@
-import { Stack } from 'expo-router';
 import { useEffect } from 'react';
-import { useAuthStore } from '../store/useAuthStore';
-import { useAppStore } from '../store/useAppStore';
-import '../locales/i18n'; // Khởi tạo i18n
-import { View, Text } from 'react-native';
-import { useFCM, handleInitialNotification } from '../hooks/useFCM';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme, type Theme } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import '@/locales/i18n';
+import { ToastProvider } from '@/components/common';
+import { useFCM, handleInitialNotification } from '@/hooks/useFCM';
+import { useTheme } from '@/hooks/useTheme';
+import { selectIsLoggedIn, useAuthStore } from '@/store/useAuthStore';
+
+// Navigator phải render ngay lần đầu; splash che màn hình tới khi hydrate xong
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { user, isHydrated } = useAuthStore();
-  const { theme } = useAppStore();
+  const isLoggedIn = useAuthStore(selectIsLoggedIn);
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const { colors, isDark } = useTheme();
 
-  // FE-13: Khởi tạo FCM listener toàn app
   useFCM();
 
   useEffect(() => {
-    // Fake hydration cho store nếu dùng persist
+    // TODO FE-01: hydrate phiên đăng nhập thật từ secure store
     useAuthStore.setState({ isHydrated: true });
 
-    // FE-13: Xử lý notification khi app mở từ killed state
     handleInitialNotification();
   }, []);
 
-  if (!isHydrated) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (isHydrated) SplashScreen.hideAsync();
+  }, [isHydrated]);
+
+  const base = isDark ? DarkTheme : DefaultTheme;
+  const navTheme: Theme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.danger,
+    },
+  };
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {user ? (
-        <>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(fe2)" options={{ headerShown: false }} />
-        </>
-      ) : (
-        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-      )}
-    </Stack>
+    <ThemeProvider value={navTheme}>
+      <ToastProvider>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Protected guard={isLoggedIn}>
+            <Stack.Screen name="(app)" />
+          </Stack.Protected>
+          <Stack.Protected guard={!isLoggedIn}>
+            <Stack.Screen name="(auth)" />
+          </Stack.Protected>
+        </Stack>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

@@ -1,7 +1,14 @@
 {
   "auth": {
     "login": "Login",
-    "login_google": "Continue with Google"
+    "login_google": "Continue with Google",
+    "register": "Sign up",
+    "login_admin_demo": "Sign in as Admin (demo)",
+    "go_register": "Don't have an account? Sign up",
+    "back_to_login": "Back to sign in",
+    "logout": "Sign out",
+    "logout_confirm_title": "Sign out?",
+    "logout_confirm_message": "You'll need to sign in again to use MeetUp."
   },
   "tabs": {
     "map": "Map",
@@ -143,5 +150,109 @@
       "idle_text": "🔍 Watching... No friends detected within {{radius}}",
       "privacy_note": "🔒 Privacy: We never reveal the exact location or address of your friends, and vice versa."
     }
+  },
+  "common": {
+    "loading": "Loading...",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "empty_title": "Nothing here yet",
+    "updated_at": "updated at {{time}}",
+    "go_home": "Go home"
+  },
+  "status": {
+    "live": "Live",
+    "stale": "Stale location",
+    "approximate": "Approximate",
+    "location_missing": "Missing location",
+    "offline": "Offline",
+    "reconnecting": "Reconnecting",
+    "gps_denied": "GPS denied",
+    "gps_off": "GPS off",
+    "exact": "Exact",
+    "batch": "Batch",
+    "cluster": "Cluster estimate",
+    "meetup_draft": "Draft",
+    "meetup_inviting": "Inviting",
+    "meetup_choosing": "Choosing place",
+    "meetup_selected": "Finalized",
+    "meetup_cancelled": "Cancelled",
+    "meetup_finished": "Finished",
+    "member_invited": "Invited",
+    "member_accepted": "Going",
+    "member_declined": "Declined"
+  },
+  "errors": {
+    "offline": {
+      "title": "You're offline",
+      "description": "No network connection. Data will refresh when you are back online."
+    },
+    "network": {
+      "title": "Can't reach the server",
+      "description": "Check your connection and try again."
+    },
+    "timeout": {
+      "title": "Request timed out",
+      "description": "The server took too long to respond. Please try again."
+    },
+    "unauthorized": {
+      "title": "Session expired",
+      "description": "Please sign in again to continue."
+    },
+    "forbidden": {
+      "title": "Access denied",
+      "description": "You don't have permission to view this."
+    },
+    "not_found": {
+      "title": "Not found",
+      "description": "This content does not exist or was removed."
+    },
+    "server": {
+      "title": "Server error",
+      "description": "Something went wrong on our side. Please try again later."
+    },
+    "gps_denied": {
+      "title": "Location permission needed",
+      "description": "Location permission was denied, so this data cannot be shown."
+    },
+    "gps_off": {
+      "title": "Location services are off",
+      "description": "Turn on location services on your device to continue."
+    },
+    "unknown": {
+      "title": "Something went wrong",
+      "description": "Please try again."
+    }
+  },
+  "placeholder": {
+    "description": "This screen will be built in task {{task}}.",
+    "related": "Related screens"
+  },
+  "screens": {
+    "meetup_list": "Meetups",
+    "meetup_create": "Create Meetup",
+    "meetup_invitations": "Meetup Invitations",
+    "meetup_detail": "Meetup Details",
+    "meetup_edit": "Edit Meetup",
+    "meetup_preferences": "Meetup Preferences",
+    "meetup_vote": "Vote for a Place",
+    "friend_list": "Friends",
+    "friend_search": "Find Friends",
+    "friend_requests": "Friend Requests",
+    "history": "Meetup History",
+    "favorites": "Favorite Places",
+    "admin_users": "Accounts",
+    "admin_reports": "Reports",
+    "dev_components": "Shared Components"
+  },
+  "profile": {
+    "dark_mode": "Dark mode",
+    "settings": "Settings",
+    "admin": "Admin",
+    "dev_menu": "Dev menu (dev builds only)"
+  },
+  "map_web": {
+    "title": "Map is not available on web",
+    "description": "The friend map only runs in the Android app. Open the app with Expo Go or a device build."
   }
 }

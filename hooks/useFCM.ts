@@ -9,12 +9,28 @@
  */
 import { useEffect, useRef } from 'react';
 import { Platform, Alert } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import type { EventSubscription } from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { routes } from '@/constants/routes';
+
+// Web và Expo Go Android (SDK 53+) không hỗ trợ expo-notifications — import là lỗi
+export const isNotificationsSupported =
+  Platform.OS !== 'web' &&
+  !(Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient);
+
+const Notifications: typeof import('expo-notifications') | null = isNotificationsSupported
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('expo-notifications')
+  : null;
+
+if (!Notifications) {
+  console.warn('[FCM] Notification bị tắt (web / Expo Go Android) — cần development build để test FE-13.');
+}
 
 // ──── Cấu hình handler notification khi app ở foreground ──────────────────
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
@@ -35,32 +51,33 @@ function navigateFromNotification(data: Record<string, unknown>) {
 
   switch (type) {
     case 'meetup_invite':
-      // Điều hướng tới màn hình chi tiết lời mời (FE-01 phụ trách)
-      router.push({ pathname: '/(tabs)/meetups' as any, params: { meetupId, tab: 'invite' } });
+      // Chi tiết meetup — nơi người được mời chấp nhận/từ chối (FE-08)
+      router.push(routes.meetupDetail(meetupId));
       break;
     case 'meetup_finalized':
-      // Điều hướng tới kết quả gợi ý địa điểm đã chốt
-      router.push({ pathname: '/(fe2)/place-detail' as any, params: { meetupId } });
+      // Chi tiết meetup hiển thị địa điểm đã chốt
+      router.push(routes.meetupDetail(meetupId));
       break;
     case 'meetup_reminder':
-      // Điều hướng vào tab meetup
-      router.push({ pathname: '/(tabs)/meetups' as any, params: { meetupId } });
+      router.push(routes.meetupDetail(meetupId));
       break;
     case 'meetup_cancelled':
-      router.push({ pathname: '/(tabs)/meetups' as any });
+      // Vẫn mở chi tiết để người dùng thấy trạng thái "đã hủy" thay vì mất dấu meetup
+      router.push(routes.meetupDetail(meetupId));
       break;
     default:
-      router.push({ pathname: '/(tabs)/meetups' as any });
+      router.push(routes.tabMeetups);
   }
 }
 
 // ──── Hook chính ──────────────────────────────────────────────────────────
 export function useFCM() {
   const token = useAuthStore((s) => s.token);
-  const notifListener = useRef<Notifications.EventSubscription | null>(null);
-  const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const notifListener = useRef<EventSubscription | null>(null);
+  const responseListener = useRef<EventSubscription | null>(null);
 
   useEffect(() => {
+    if (!Notifications) return;
     let isMounted = true;
 
     // 1. Xin quyền + lấy FCM token
@@ -117,6 +134,7 @@ export function useFCM() {
 
 // ──── Lấy notification khi app mở từ killed state ─────────────────────────
 export async function handleInitialNotification() {
+  if (!Notifications) return;
   const lastResponse = await Notifications.getLastNotificationResponseAsync();
   if (lastResponse) {
     const data = lastResponse.notification.request.content.data as Record<string, unknown>;
@@ -127,6 +145,10 @@ export async function handleInitialNotification() {
 
 // ──── Mock: tạo local notification để test UI ─────────────────────────────
 export async function scheduleMockNotification(type: NotifType, meetupId = 'meetup-1') {
+  if (!Notifications) {
+    console.warn('[FCM] Không thể tạo notification trong Expo Go (Android).');
+    return;
+  }
   await Notifications.scheduleNotificationAsync({
     content: {
       title: NOTIF_TITLES[type],

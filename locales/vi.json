@@ -1,7 +1,14 @@
 {
   "auth": {
     "login": "Đăng nhập",
-    "login_google": "Tiếp tục với Google"
+    "login_google": "Tiếp tục với Google",
+    "register": "Đăng ký",
+    "login_admin_demo": "Đăng nhập Admin (demo)",
+    "go_register": "Chưa có tài khoản? Đăng ký",
+    "back_to_login": "Quay lại đăng nhập",
+    "logout": "Đăng xuất",
+    "logout_confirm_title": "Đăng xuất?",
+    "logout_confirm_message": "Bạn sẽ cần đăng nhập lại để dùng MeetUp."
   },
   "tabs": {
     "map": "Bản đồ",
@@ -143,5 +150,109 @@
       "idle_text": "🔍 Đang theo dõi... Chưa phát hiện bạn bè nào trong bán kính {{radius}}",
       "privacy_note": "🔒 Quyền riêng tư: Hệ thống không bao giờ tiết lộ vị trí hoặc địa chỉ chính xác của bạn bè cho bạn và ngược lại."
     }
+  },
+  "common": {
+    "loading": "Đang tải...",
+    "retry": "Thử lại",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "empty_title": "Chưa có dữ liệu",
+    "updated_at": "cập nhật lúc {{time}}",
+    "go_home": "Về trang chủ"
+  },
+  "status": {
+    "live": "Trực tiếp",
+    "stale": "Vị trí cũ",
+    "approximate": "Vị trí gần đúng",
+    "location_missing": "Thiếu vị trí",
+    "offline": "Mất mạng",
+    "reconnecting": "Đang kết nối lại",
+    "gps_denied": "GPS bị từ chối",
+    "gps_off": "GPS đang tắt",
+    "exact": "Chính xác",
+    "batch": "Theo nhóm",
+    "cluster": "Ước lượng cụm",
+    "meetup_draft": "Nháp",
+    "meetup_inviting": "Đang mời",
+    "meetup_choosing": "Đang chọn địa điểm",
+    "meetup_selected": "Đã chốt",
+    "meetup_cancelled": "Đã hủy",
+    "meetup_finished": "Đã kết thúc",
+    "member_invited": "Đã mời",
+    "member_accepted": "Tham gia",
+    "member_declined": "Từ chối"
+  },
+  "errors": {
+    "offline": {
+      "title": "Bạn đang offline",
+      "description": "Không có kết nối mạng. Dữ liệu sẽ cập nhật khi có mạng trở lại."
+    },
+    "network": {
+      "title": "Không kết nối được máy chủ",
+      "description": "Vui lòng kiểm tra mạng và thử lại."
+    },
+    "timeout": {
+      "title": "Phản hồi quá lâu",
+      "description": "Máy chủ không phản hồi kịp. Vui lòng thử lại."
+    },
+    "unauthorized": {
+      "title": "Phiên đăng nhập hết hạn",
+      "description": "Vui lòng đăng nhập lại để tiếp tục."
+    },
+    "forbidden": {
+      "title": "Không có quyền truy cập",
+      "description": "Bạn không có quyền xem nội dung này."
+    },
+    "not_found": {
+      "title": "Không tìm thấy",
+      "description": "Nội dung không tồn tại hoặc đã bị xóa."
+    },
+    "server": {
+      "title": "Máy chủ gặp sự cố",
+      "description": "Đã có lỗi phía máy chủ. Vui lòng thử lại sau."
+    },
+    "gps_denied": {
+      "title": "Chưa có quyền vị trí",
+      "description": "Bạn đã từ chối quyền vị trí nên không thể hiển thị dữ liệu này."
+    },
+    "gps_off": {
+      "title": "GPS đang tắt",
+      "description": "Hãy bật dịch vụ vị trí trên thiết bị để tiếp tục."
+    },
+    "unknown": {
+      "title": "Đã có lỗi xảy ra",
+      "description": "Vui lòng thử lại."
+    }
+  },
+  "placeholder": {
+    "description": "Màn hình này sẽ được làm trong task {{task}}.",
+    "related": "Màn hình liên quan"
+  },
+  "screens": {
+    "meetup_list": "Danh sách Meetup",
+    "meetup_create": "Tạo Meetup",
+    "meetup_invitations": "Lời mời Meetup",
+    "meetup_detail": "Chi tiết Meetup",
+    "meetup_edit": "Sửa Meetup",
+    "meetup_preferences": "Sở thích cho Meetup",
+    "meetup_vote": "Vote địa điểm",
+    "friend_list": "Danh sách bạn bè",
+    "friend_search": "Tìm bạn",
+    "friend_requests": "Lời mời kết bạn",
+    "history": "Lịch sử Meetup",
+    "favorites": "Địa điểm yêu thích",
+    "admin_users": "Quản lý tài khoản",
+    "admin_reports": "Báo cáo vi phạm",
+    "dev_components": "Component dùng chung"
+  },
+  "profile": {
+    "dark_mode": "Chế độ tối",
+    "settings": "Cài đặt",
+    "admin": "Quản trị",
+    "dev_menu": "Dev menu (chỉ bản dev)"
+  },
+  "map_web": {
+    "title": "Bản đồ chưa hỗ trợ trên web",
+    "description": "Bản đồ bạn bè chỉ chạy trên ứng dụng Android. Hãy mở app bằng Expo Go hoặc bản build trên điện thoại."
   }
 }
