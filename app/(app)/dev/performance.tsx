@@ -7,20 +7,16 @@ export default function PerformanceScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [locationUpdates, setLocationUpdates] = useState(0);
-  const [renderCount, setRenderCount] = useState(0);
+  const [renderCount, setRenderCount] = useState(1);
 
   // Giả lập nhận location updates liên tục để test hiệu năng
   useEffect(() => {
     const interval = setInterval(() => {
       setLocationUpdates((prev) => prev + 1);
+      setRenderCount((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  // Tăng render count mỗi lần component re-render
-  useEffect(() => {
-    setRenderCount((prev) => prev + 1);
-  });
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

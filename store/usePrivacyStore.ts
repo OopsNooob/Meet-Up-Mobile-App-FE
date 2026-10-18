@@ -18,6 +18,7 @@ interface PrivacyStoreState {
   setNearbyFeatureEnabled: (val: boolean) => void;
   addSelectedFriend: (friendId: string) => void;
   removeSelectedFriend: (friendId: string) => void;
+  setSelectedFriends: (friendIds: string[]) => void;
   isEffectiveSharingActive: () => boolean;
 }
 
@@ -130,6 +131,23 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
         settings: {
           ...state.settings,
           selectedFriendIds: updated,
+          sharingMode: mode,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
+  },
+
+  setSelectedFriends: (friendIds: string[]) => {
+    set((state) => {
+      let mode = state.settings.sharingMode;
+      if (mode === 'selected_friends' && friendIds.length === 0) {
+        mode = 'friends';
+      }
+      return {
+        settings: {
+          ...state.settings,
+          selectedFriendIds: friendIds,
           sharingMode: mode,
           updatedAt: new Date().toISOString(),
         },
