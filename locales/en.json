@@ -79,7 +79,13 @@
       "accuracy_warn_title": "⚠️ Low GPS accuracy",
       "accuracy_warn_body": "Current location accuracy is > 100 m. Meetup suggestions may be less accurate. Try going outdoors or enabling Wi-Fi.",
       "save_btn": "Save Changes",
-      "save_success": "Privacy settings saved successfully!"
+      "save_success": "Privacy settings saved successfully!",
+      "manage_selected_friends": "Manage Selected Friends",
+      "select_all": "Select All",
+      "deselect_all": "Deselect All",
+      "search_friends": "Search friends...",
+      "save_selection": "Save Selection",
+      "empty_search": "No matching friends found"
     },
     "map": {
       "screen_title": "Friend Map",
@@ -96,7 +102,15 @@
       "precision_approximate": "Approximate (~1.1km)",
       "just_updated": "Just updated",
       "minutes_ago": "{{count}} min ago",
-      "hours_ago": "{{count}} hr ago"
+      "hours_ago": "{{count}} hr ago",
+      "my_location": "My Location",
+      "settings_shortcut": "Privacy Settings",
+      "nearby_shortcut": "Nearby Friends",
+      "friend_modal_title": "Friend Location Details",
+      "invite_to_meetup": "Invite to Meetup",
+      "directions_to_friend": "Directions to Friend",
+      "chat_with_friend": "Message",
+      "approximate_privacy_notice": "This location is privacy-protected (~1.1km rounded). Precise meter-by-meter navigation is unavailable."
     },
     "recommendation": {
       "screen_title": "Place Suggestions",
@@ -108,7 +122,18 @@
       "scale_batch": "Batch",
       "scale_cluster": "~Estimated",
       "why_button": "Why this suggestion? 🤖",
-      "eta_per_member": "ETA per member"
+      "eta_per_member": "ETA per member",
+      "view_list": "List",
+      "view_map": "Map",
+      "filter_sort_btn": "Filter & Sort",
+      "sort_by": "Sort by",
+      "sort_avg_eta": "Fastest Avg ETA",
+      "sort_max_eta": "Lowest Max ETA",
+      "sort_rating": "Highest Rating",
+      "reset_filter": "Reset",
+      "apply_filter": "Apply",
+      "map_member_label": "Member",
+      "map_place_label": "Suggested Place"
     },
     "place_detail": {
       "screen_title": "Place Details",
@@ -116,14 +141,18 @@
       "no_data_hint": "Google Places doesn't provide opening hours for this place. Please check before visiting.",
       "rating_section": "Rating",
       "reviews_count": "{{count}} reviews",
-      "eta_section": "Travel Time"
+      "eta_section": "Travel Time",
+      "ask_ai": "Why did AI suggest this? 🤖",
+      "vote_this_place": "Vote for this place 🗳️"
     },
     "chat": {
       "screen_title": "Group Chat",
       "input_placeholder": "Type a message...",
       "offline_banner": "📡 Disconnected — messages will be resent when reconnected",
       "status_pending": "⏳ Sending...",
-      "status_error": "⚠ Failed — Tap to retry"
+      "status_error": "⚠ Failed — Tap to retry",
+      "share_location_btn": "Share Location",
+      "location_shared_msg": "📍 I'm about ~1.2 km away from the venue (ETA: 8 min)"
     },
     "ai_explanation": {
       "screen_title": "Why this suggestion?",
@@ -148,7 +177,16 @@
       "detected_title": "🎉 You and a friend are nearby!",
       "create_meetup": "Create Meetup",
       "idle_text": "🔍 Watching... No friends detected within {{radius}}",
-      "privacy_note": "🔒 Privacy: We never reveal the exact location or address of your friends, and vice versa."
+      "privacy_note": "🔒 Privacy: We never reveal the exact location or address of your friends, and vice versa.",
+      "detected_modal_title": "Nearby Friends Detected!",
+      "detected_subtitle": "Friends are currently within your chosen radius",
+      "approx_distance": "About {{dist}} away",
+      "invite_nearby_meetup": "Invite for Coffee Now",
+      "dismiss": "Later"
+    },
+    "notifications": {
+      "in_app_title": "New Notification",
+      "tap_to_open": "Tap to view details"
     }
   },
   "common": {

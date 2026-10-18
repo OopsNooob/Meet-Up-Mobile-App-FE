@@ -20,7 +20,7 @@ export default function AiExplanationScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { placeId, placeName } = useLocalSearchParams<{ placeId: string; placeName: string }>();
+  const { placeName } = useLocalSearchParams<{ placeId: string; placeName: string }>();
 
   const [state, setState] = useState<ExplainState>('loading');
   const [explanation, setExplanation] = useState('');

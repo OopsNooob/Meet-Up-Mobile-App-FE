@@ -1,11 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MapView from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
+import { LocateFixed, ShieldCheck, Radar } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { FriendMarker, Friend } from '@/components/map/FriendMarker';
+import { FriendInfoModal } from '@/components/map/FriendInfoModal';
 import { useSocket } from '@/hooks/useSocket';
+import { routes } from '@/constants/routes';
 import type { LocationUpdatedPayload } from '@/hooks/useSocket';
 
 const MOCK_FRIENDS: Friend[] = [
@@ -45,15 +49,18 @@ export default function FriendMapScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const mapRef = useRef<MapView>(null);
 
   const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
   const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const { on, off, isConnected } = useSocket();
 
   useEffect(() => {
     const timer = setTimeout(() => setSocketStatus(isConnected() ? 'connected' : 'disconnected'), 1500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isConnected]);
 
   useEffect(() => {
     on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>('LocationUpdated', (payload) => {
@@ -77,22 +84,26 @@ export default function FriendMapScreen() {
   }, [on, off]);
 
   const handleFriendPress = useSinglePress((friend: Friend) => {
-    const diffMin = Math.round((Date.now() - friend.updatedAt.getTime()) / 60000);
-    const timeLabel = diffMin < 1 ? t('fe2.map.just_updated') : t('fe2.map.minutes_ago', { count: diffMin });
-    const isApprox = friend.precision === 'approximate' || friend.accuracy >= 1000;
+    setSelectedFriend(friend);
+    setModalVisible(true);
+  }, 400);
 
-    let msg = `${friend.name}\n${timeLabel}`;
-    if (friend.isStale) {
-      msg += `\n⚠️ ${t('fe2.common.stale_label')}`;
-    }
-    if (isApprox) {
-      msg += `\n🛡️ ${t('fe2.map.precision_approximate')} — Làm tròn 2 số thập phân`;
-    } else {
-      msg += `\n${t('fe2.map.accuracy_label')}: ~${Math.round(friend.accuracy)}m`;
-    }
+  const handleCenterMyLocation = useSinglePress(() => {
+    mapRef.current?.animateToRegion({
+      latitude: 10.7769,
+      longitude: 106.7009,
+      latitudeDelta: 0.015,
+      longitudeDelta: 0.015,
+    }, 600);
+  }, 500);
 
-    Alert.alert(t('fe2.map.location_info'), msg);
-  }, 600);
+  const handleGoPrivacy = useSinglePress(() => {
+    router.push(routes.settingsLocation);
+  }, 500);
+
+  const handleGoNearby = useSinglePress(() => {
+    router.push(routes.settingsNearby);
+  }, 500);
 
   const STATUS_LABEL: Record<typeof socketStatus, string> = {
     connecting: t('fe2.map.socket_connecting'),
@@ -114,6 +125,7 @@ export default function FriendMapScreen() {
       </View>
 
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={{
           latitude: 10.7769,
@@ -126,6 +138,33 @@ export default function FriendMapScreen() {
           <FriendMarker key={friend.userId} friend={friend} onPress={handleFriendPress} />
         ))}
       </MapView>
+
+      {/* Floating Action Buttons (FABs) */}
+      <View style={styles.fabColumn}>
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={handleGoPrivacy}
+          accessibilityLabel={t('fe2.map.settings_shortcut')}
+        >
+          <ShieldCheck size={20} color={colors.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={handleGoNearby}
+          accessibilityLabel={t('fe2.map.nearby_shortcut')}
+        >
+          <Radar size={20} color={colors.purple} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+          onPress={handleCenterMyLocation}
+          accessibilityLabel={t('fe2.map.my_location')}
+        >
+          <LocateFixed size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.legend}>
         {[
@@ -140,6 +179,13 @@ export default function FriendMapScreen() {
           </View>
         ))}
       </View>
+
+      {/* Friend Detail Bottom Sheet Modal */}
+      <FriendInfoModal
+        visible={modalVisible}
+        friend={selectedFriend}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 }
@@ -160,7 +206,7 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     legend: {
       position: 'absolute',
       bottom: 24,
-      right: 12,
+      left: 12,
       backgroundColor: c.surface,
       borderRadius: 10,
       padding: 10,
@@ -174,4 +220,24 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendDot: { width: 10, height: 10, borderRadius: 5 },
     legendText: { fontSize: 11, color: c.subtext },
+    fabColumn: {
+      position: 'absolute',
+      right: 16,
+      bottom: 24,
+      gap: 12,
+      alignItems: 'center',
+    },
+    fab: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 3,
+    },
   });

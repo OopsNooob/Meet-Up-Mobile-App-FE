@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -27,6 +28,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { SharingMode } from '@/types/privacy';
+import { FriendSelectionModal } from '@/components/settings/FriendSelectionModal';
 
 type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
@@ -49,30 +51,19 @@ export default function LocationSettingsScreen() {
     setUseApproximateLocation,
     addSelectedFriend,
     removeSelectedFriend,
+    setSelectedFriends,
     isEffectiveSharingActive,
   } = usePrivacyStore();
 
-  const [selectedExpiryHours, setSelectedExpiryHours] = useState<number>(() => {
-    if (!settings.sharingExpiresAt) return 0;
-    const diffHours = Math.round(
-      (new Date(settings.sharingExpiresAt).getTime() - Date.now()) / (3600 * 1000)
-    );
-    return [1, 4, 8, 24].includes(diffHours) ? diffHours : 1;
-  });
-
-  useEffect(() => {
-    if (!settings.sharingExpiresAt) {
-      setSelectedExpiryHours(0);
-    } else {
-      const diffHours = Math.round(
-        (new Date(settings.sharingExpiresAt).getTime() - Date.now()) / (3600 * 1000)
-      );
-      setSelectedExpiryHours([1, 4, 8, 24].includes(diffHours) ? diffHours : 1);
-    }
-  }, [settings.sharingExpiresAt]);
+  const [friendModalVisible, setFriendModalVisible] = useState(false);
+  const [selectedExpiryHours, setSelectedExpiryHours] = useState<number>(0);
 
   const handleRetry = useSinglePress(() => Alert.alert(t('fe2.location.grant_permission'), ''), 600);
-  const handleOpenSettings = useSinglePress(() => Alert.alert(t('fe2.location.open_settings'), ''), 600);
+  const handleOpenSettings = useSinglePress(() => {
+    Linking.openSettings().catch(() => {
+      Alert.alert(t('fe2.location.open_settings'), '');
+    });
+  }, 600);
 
   // Master switch
   const isSharingActive = settings.sharingMode !== 'off';
@@ -380,6 +371,17 @@ export default function LocationSettingsScreen() {
           </View>
           <Text style={styles.sublabel}>{t('fe2.location.selected_friends_desc')}</Text>
 
+          {/* Nút mở Modal quản lý bạn bè */}
+          <TouchableOpacity
+            style={[styles.manageBtn, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
+            onPress={() => setFriendModalVisible(true)}
+          >
+            <Users size={16} color={colors.primary} />
+            <Text style={[styles.manageBtnText, { color: colors.primary }]}>
+              {t('fe2.location.manage_selected_friends')}
+            </Text>
+          </TouchableOpacity>
+
           {/* Danh sách bạn bè đã chọn */}
           <View style={styles.friendsList}>
             {selectedFriends.length === 0 ? (
@@ -520,6 +522,18 @@ export default function LocationSettingsScreen() {
           {t('fe2.location.accuracy_warn_body')}
         </Text>
       </View>
+
+      {/* Modal chọn bạn bè */}
+      <FriendSelectionModal
+        visible={friendModalVisible}
+        onClose={() => setFriendModalVisible(false)}
+        friends={availableFriends}
+        selectedFriendIds={settings.selectedFriendIds}
+        onSave={(newIds) => {
+          setSelectedFriends(newIds);
+          showSavedFeedback();
+        }}
+      />
     </ScrollView>
   );
 }
@@ -636,6 +650,22 @@ const makeStyles = (
       backgroundColor: c.surfaceAlt,
     },
     addChipText: { fontSize: 12, fontWeight: '600' },
+    manageBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    manageBtnText: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
     autoDowngradeHint: { fontSize: 11, color: c.placeholder, marginTop: 4, lineHeight: 16 },
     chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
     expiryChip: {

@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { ChatBubble, ChatMessage, MessageStatus } from '@/components/meetup/ChatBubble';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { MapPin } from 'lucide-react-native';
 
 const CURRENT_USER_ID = 'u1';
 const CURRENT_USER_NAME = 'Bạn';
@@ -40,6 +41,26 @@ export default function ChatScreen() {
     emit('chat:send', { meetupId: 'meetup-1', text });
   }, 600);
 
+  const handleShareLocation = useSinglePress(() => {
+    const locText = t('fe2.chat.location_shared_msg');
+    const newMsg: ChatMessage = {
+      id: `m_${Date.now()}`,
+      userId: CURRENT_USER_ID,
+      userName: CURRENT_USER_NAME,
+      text: locText,
+      timestamp: new Date(),
+      status: 'pending',
+      isOwn: true,
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
+      );
+    }, 600);
+    emit('chat:send', { meetupId: 'meetup-1', text: locText });
+  }, 800);
+
   const handleRetry = useSinglePress((messageId: string) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: 'pending' as MessageStatus } : m)));
     setTimeout(() => {
@@ -63,6 +84,13 @@ export default function ChatScreen() {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
       <View style={styles.inputBar}>
+        <TouchableOpacity
+          style={[styles.locationBtn, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+          onPress={handleShareLocation}
+          accessibilityLabel={t('fe2.chat.share_location_btn')}
+        >
+          <MapPin size={18} color={colors.primary} />
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           placeholder={t('fe2.chat.input_placeholder')}
@@ -90,7 +118,15 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     offlineBanner: { backgroundColor: c.dangerLight, paddingHorizontal: 16, paddingVertical: 8 },
     offlineText: { fontSize: 12, color: c.danger, textAlign: 'center' },
     list: { padding: 16, gap: 2 },
-    inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 12, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.divider },
+    inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.divider },
+    locationBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+    },
     input: { flex: 1, backgroundColor: c.surfaceAlt, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, fontSize: 14, maxHeight: 100, color: c.text },
     sendBtn: { backgroundColor: c.primary, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     sendIcon: { color: '#fff', fontSize: 16 },

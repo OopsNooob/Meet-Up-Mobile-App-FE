@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { NearbySkeleton } from '@/components/common/Skeleton';
+import { NearbyDetectedModal, NearbyFriendItem } from '@/components/settings/NearbyDetectedModal';
 import { routes } from '@/constants/routes';
 
 type RadiusOption = 500 | 1000 | 2000 | 5000;
@@ -15,6 +16,21 @@ const RADIUS_OPTIONS: RadiusOption[] = [500, 1000, 2000, 5000];
 const RADIUS_LABELS: Record<RadiusOption, string> = { 500: '500 m', 1000: '1 km', 2000: '2 km', 5000: '5 km' };
 const MOCK_STATE: NearbyState = 'cooldown';
 const MOCK_COOLDOWN = '1 giờ 23 phút';
+
+const MOCK_NEARBY_FRIENDS: NearbyFriendItem[] = [
+  {
+    id: 'u2',
+    name: 'Huy Tran',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop',
+    approxDistance: '~800m',
+  },
+  {
+    id: 'u3',
+    name: 'Bao Linh',
+    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
+    approxDistance: '~1.2km',
+  },
+];
 
 export default function NearbyScreen() {
   const { t } = useTranslation();
@@ -27,6 +43,7 @@ export default function NearbyScreen() {
   const [nearbyState, setNearbyState] = useState<NearbyState>(MOCK_STATE);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 800);
@@ -129,7 +146,7 @@ export default function NearbyScreen() {
           <Text style={[styles.label, { color: colors.success }]}>{t('fe2.nearby.detected_title')}</Text>
           <TouchableOpacity
             style={[styles.createBtn, { backgroundColor: colors.success }]}
-            onPress={handleCreateMeetup}
+            onPress={() => setModalVisible(true)}
           >
             <Text style={styles.createBtnText}>{t('fe2.nearby.create_meetup')}</Text>
           </TouchableOpacity>
@@ -147,6 +164,16 @@ export default function NearbyScreen() {
       <Text style={styles.privacyNote}>{t('fe2.nearby.privacy_note')}</Text>
         </>
       )}
+
+      <NearbyDetectedModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        friends={MOCK_NEARBY_FRIENDS}
+        onInviteMeetup={() => {
+          setModalVisible(false);
+          handleCreateMeetup();
+        }}
+      />
     </ScrollView>
   );
 }

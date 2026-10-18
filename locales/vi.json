@@ -79,7 +79,13 @@
       "accuracy_warn_title": "⚠️ Độ chính xác GPS thấp",
       "accuracy_warn_body": "Vị trí hiện tại có độ chính xác > 100 m. Kết quả gợi ý có thể kém chính xác. Hãy ra ngoài trời hoặc bật WiFi để cải thiện.",
       "save_btn": "Lưu thay đổi",
-      "save_success": "Đã lưu cài đặt quyền riêng tư thành công!"
+      "save_success": "Đã lưu cài đặt quyền riêng tư thành công!",
+      "manage_selected_friends": "Quản lý danh sách bạn bè",
+      "select_all": "Chọn tất cả",
+      "deselect_all": "Bỏ chọn tất cả",
+      "search_friends": "Tìm bạn bè...",
+      "save_selection": "Lưu danh sách",
+      "empty_search": "Không tìm thấy bạn bè phù hợp"
     },
     "map": {
       "screen_title": "Bản đồ bạn bè",
@@ -96,7 +102,15 @@
       "precision_approximate": "Gần đúng (~1.1km)",
       "just_updated": "Vừa cập nhật",
       "minutes_ago": "{{count}} phút trước",
-      "hours_ago": "{{count}} giờ trước"
+      "hours_ago": "{{count}} giờ trước",
+      "my_location": "Vị trí của tôi",
+      "settings_shortcut": "Cài đặt vị trí",
+      "nearby_shortcut": "Bạn ở gần",
+      "friend_modal_title": "Chi tiết vị trí bạn bè",
+      "invite_to_meetup": "Mời vào Meetup",
+      "directions_to_friend": "Chỉ đường đến bạn",
+      "chat_with_friend": "Nhắn tin",
+      "approximate_privacy_notice": "Vị trí này được bảo vệ quyền riêng tư (làm tròn ~1.1km). Không thể điều hướng chính xác từng mét."
     },
     "recommendation": {
       "screen_title": "Gợi ý địa điểm",
@@ -108,7 +122,18 @@
       "scale_batch": "Batch",
       "scale_cluster": "~Ước lượng",
       "why_button": "Vì sao gợi ý? 🤖",
-      "eta_per_member": "ETA từng người"
+      "eta_per_member": "ETA từng người",
+      "view_list": "Danh sách",
+      "view_map": "Bản đồ",
+      "filter_sort_btn": "Lọc & Sắp xếp",
+      "sort_by": "Sắp xếp theo",
+      "sort_avg_eta": "Avg ETA nhanh nhất",
+      "sort_max_eta": "Max ETA thấp nhất",
+      "sort_rating": "Đánh giá cao nhất",
+      "reset_filter": "Đặt lại",
+      "apply_filter": "Áp dụng",
+      "map_member_label": "Thành viên",
+      "map_place_label": "Quán đề xuất"
     },
     "place_detail": {
       "screen_title": "Chi tiết địa điểm",
@@ -116,14 +141,18 @@
       "no_data_hint": "Google Places không cung cấp dữ liệu giờ mở cho địa điểm này. Vui lòng kiểm tra trực tiếp trước khi đến.",
       "rating_section": "Đánh giá",
       "reviews_count": "{{count}} đánh giá",
-      "eta_section": "Thời gian di chuyển"
+      "eta_section": "Thời gian di chuyển",
+      "ask_ai": "Vì sao AI gợi ý nơi này? 🤖",
+      "vote_this_place": "Bình chọn địa điểm này 🗳️"
     },
     "chat": {
       "screen_title": "Chat nhóm",
       "input_placeholder": "Nhắn tin...",
       "offline_banner": "📡 Mất kết nối — tin nhắn sẽ gửi lại khi có mạng",
       "status_pending": "⏳ Đang gửi...",
-      "status_error": "⚠ Lỗi — Thử lại"
+      "status_error": "⚠ Lỗi — Thử lại",
+      "share_location_btn": "Gửi vị trí",
+      "location_shared_msg": "📍 Tôi đang ở cách điểm hẹn ~1.2 km (ETA: 8 phút)"
     },
     "ai_explanation": {
       "screen_title": "Vì sao gợi ý?",
@@ -148,7 +177,16 @@
       "detected_title": "🎉 Bạn và một người bạn đang ở gần nhau!",
       "create_meetup": "Tạo Meetup ngay",
       "idle_text": "🔍 Đang theo dõi... Chưa phát hiện bạn bè nào trong bán kính {{radius}}",
-      "privacy_note": "🔒 Quyền riêng tư: Hệ thống không bao giờ tiết lộ vị trí hoặc địa chỉ chính xác của bạn bè cho bạn và ngược lại."
+      "privacy_note": "🔒 Quyền riêng tư: Hệ thống không bao giờ tiết lộ vị trí hoặc địa chỉ chính xác của bạn bè cho bạn và ngược lại.",
+      "detected_modal_title": "Phát hiện bạn bè ở gần!",
+      "detected_subtitle": "Đang có bạn bè ở trong bán kính quét của bạn",
+      "approx_distance": "Cách bạn khoảng {{dist}}",
+      "invite_nearby_meetup": "Rủ đi cà phê ngay",
+      "dismiss": "Để sau"
+    },
+    "notifications": {
+      "in_app_title": "Thông báo mới",
+      "tap_to_open": "Chạm để xem chi tiết"
     }
   },
   "common": {
