@@ -21,6 +21,8 @@ export type PlaceItem = {
   etaPerMember: { userId: string; name: string; eta: number }[];
   scaleLabel: ScaleLabel;
   rank: number;
+  lat?: number;
+  lng?: number;
 };
 
 type Props = {

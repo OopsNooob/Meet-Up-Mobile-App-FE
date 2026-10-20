@@ -12,3 +12,4 @@ export * from './StateViews';
 export * from './StatusLabel';
 export * from './TextField';
 export * from './Toast';
+export * from './InAppNotificationBanner';

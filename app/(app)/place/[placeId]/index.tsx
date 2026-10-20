@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, RefreshControl } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { Sparkles, CheckCircle2, Navigation } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { PlaceDetailSkeleton } from '@/components/common/Skeleton';
+import { routes } from '@/constants/routes';
 
 const MOCK_DETAIL = {
   placeId: 'p1', name: 'The Coffee House - Nguyễn Huệ',
@@ -28,7 +30,12 @@ export default function PlaceDetailScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [place, setPlace] = useState(MOCK_DETAIL);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [place, setPlace] = useState({ ...MOCK_DETAIL, placeId: placeId || MOCK_DETAIL.placeId });
+
+  const handleVote = useSinglePress(() => {
+    setHasVoted((prev) => !prev);
+  }, 400);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 800);
@@ -135,12 +142,48 @@ export default function PlaceDetailScreen() {
         ))}
       </View>
 
-      <TouchableOpacity
-        style={[styles.navBtn, { backgroundColor: colors.primary }]}
-        onPress={handleOpenNavigation}
-      >
-        <Text style={styles.navBtnText}>{t('fe2.common.send_directions')}</Text>
-      </TouchableOpacity>
+      {/* Action buttons */}
+      <View style={styles.actionColumn}>
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: colors.purpleLight, borderColor: colors.purple }]}
+          onPress={() => router.push(routes.placeExplanation(place.placeId, place.name))}
+        >
+          <Sparkles size={18} color={colors.purple} />
+          <Text style={[styles.actionBtnText, { color: colors.purple }]}>
+            {t('fe2.recommendation.why_button')}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionBtn,
+            hasVoted
+              ? { backgroundColor: colors.successLight, borderColor: colors.success }
+              : { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+          ]}
+          onPress={handleVote}
+        >
+          <CheckCircle2 size={18} color={hasVoted ? colors.success : colors.subtext} />
+          <Text
+            style={[
+              styles.actionBtnText,
+              { color: hasVoted ? colors.success : colors.subtext },
+            ]}
+          >
+            {hasVoted ? '✓ Đã bình chọn địa điểm này' : '🗳️ Bình chọn địa điểm này'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+          onPress={handleOpenNavigation}
+        >
+          <Navigation size={18} color="#fff" />
+          <Text style={[styles.actionBtnText, { color: '#fff' }]}>
+            {t('fe2.common.send_directions')}
+          </Text>
+        </TouchableOpacity>
+      </View>
         </>
       )}
     </ScrollView>
@@ -171,4 +214,15 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     memberEta: { fontSize: 13, fontWeight: '700' },
     navBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     navBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    actionColumn: { gap: 10, marginTop: 8 },
+    actionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    actionBtnText: { fontWeight: '700', fontSize: 15 },
   });

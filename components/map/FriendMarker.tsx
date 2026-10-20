@@ -4,6 +4,7 @@
  * - Precise: ghim chính xác với độ chính xác gốc
  * - Approximate: làm tròn 2 số thập phân (~1.1 km), hiển thị huy hiệu khiên bảo mật
  */
+import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
@@ -35,9 +36,10 @@ const APPROX_COLOR = '#8b5cf6'; // Tím cho approximate privacy location
 export function FriendMarker({ friend, onPress }: Props) {
   const { t } = useTranslation();
   const handlePress = useSinglePress(() => onPress?.(friend), 600);
+  const [now] = useState(() => Date.now());
 
   function formatUpdatedAt(date: Date): string {
-    const diffMs = Date.now() - date.getTime();
+    const diffMs = now - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return t('fe2.map.just_updated');
     if (diffMin < 60) return t('fe2.map.minutes_ago', { count: diffMin });
