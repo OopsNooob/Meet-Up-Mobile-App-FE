@@ -3,12 +3,39 @@
     "login": "Đăng nhập",
     "login_google": "Tiếp tục với Google",
     "register": "Đăng ký",
-    "login_admin_demo": "Đăng nhập Admin (demo)",
     "go_register": "Chưa có tài khoản? Đăng ký",
-    "back_to_login": "Quay lại đăng nhập",
+    "back_to_login": "Đã có tài khoản? Đăng nhập",
     "logout": "Đăng xuất",
     "logout_confirm_title": "Đăng xuất?",
-    "logout_confirm_message": "Bạn sẽ cần đăng nhập lại để dùng MeetUp."
+    "logout_confirm_message": "Bạn sẽ cần đăng nhập lại để dùng MeetUp.",
+    "login_subtitle": "Hẹn bạn bè, chọn chỗ gặp nhanh hơn",
+    "register_title": "Tạo tài khoản",
+    "register_subtitle": "Đăng ký để bắt đầu hẹn gặp bạn bè",
+    "or": "hoặc",
+    "email": "Email",
+    "email_placeholder": "ban@example.com",
+    "password": "Mật khẩu",
+    "password_placeholder": "Nhập mật khẩu",
+    "password_hint": "Tối thiểu {{min}} ký tự",
+    "confirm_password": "Xác nhận mật khẩu",
+    "confirm_password_placeholder": "Nhập lại mật khẩu",
+    "display_name": "Tên hiển thị",
+    "display_name_placeholder": "Bạn bè sẽ thấy tên này",
+    "locked_reason": "Lý do: {{reason}}",
+    "google_mock_title": "Google Sign-In (mock)",
+    "google_mock_message": "Đăng nhập bằng google.user@gmail.com?",
+    "google_mock_continue": "Tiếp tục"
+  },
+  "validation": {
+    "email_required": "Vui lòng nhập email",
+    "email_invalid": "Email không đúng định dạng",
+    "email_taken": "Email này đã được đăng ký. Hãy đăng nhập hoặc dùng email khác.",
+    "password_required": "Vui lòng nhập mật khẩu",
+    "password_too_short": "Mật khẩu phải có ít nhất {{min}} ký tự",
+    "confirm_password_required": "Vui lòng nhập lại mật khẩu",
+    "confirm_password_mismatch": "Mật khẩu xác nhận không khớp",
+    "display_name_required": "Vui lòng nhập tên hiển thị",
+    "display_name_too_long": "Tên hiển thị tối đa {{max}} ký tự"
   },
   "tabs": {
     "map": "Bản đồ",
@@ -256,6 +283,22 @@
     "gps_off": {
       "title": "GPS đang tắt",
       "description": "Hãy bật dịch vụ vị trí trên thiết bị để tiếp tục."
+    },
+    "invalid_credentials": {
+      "title": "Sai email hoặc mật khẩu",
+      "description": "Kiểm tra lại thông tin đăng nhập rồi thử lại."
+    },
+    "account_locked": {
+      "title": "Tài khoản đã bị khóa",
+      "description": "Tài khoản của bạn đã bị quản trị viên khóa nên không thể đăng nhập. Liên hệ hỗ trợ nếu bạn cho rằng đây là nhầm lẫn."
+    },
+    "email_exists": {
+      "title": "Email đã được đăng ký",
+      "description": "Hãy đăng nhập hoặc dùng email khác."
+    },
+    "google_unavailable": {
+      "title": "Chưa hỗ trợ đăng nhập Google",
+      "description": "Đăng nhập Google chưa được cấu hình trên bản cài này. Vui lòng dùng email và mật khẩu."
     },
     "unknown": {
       "title": "Đã có lỗi xảy ra",

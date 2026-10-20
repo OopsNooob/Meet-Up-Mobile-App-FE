@@ -50,6 +50,7 @@ export default function AppLayout() {
       </Stack.Protected>
 
       <Stack.Screen name="dev/components" options={{ title: t('screens.dev_components') }} />
+      <Stack.Screen name="dev/auth" options={{ title: 'Auth session (FE-01)' }} />
       <Stack.Screen name="dev/notifications" options={{ title: 'Notifications (FE-13)' }} />
       <Stack.Screen name="dev/performance" options={{ title: 'Performance (FE-20)' }} />
     </Stack>

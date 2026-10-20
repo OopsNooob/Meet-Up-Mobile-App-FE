@@ -47,6 +47,7 @@ export const routes = {
   adminReports: '/admin/reports',
 
   devComponents: '/dev/components',
+  devAuth: '/dev/auth',
   devNotifications: '/dev/notifications',
   devPerformance: '/dev/performance',
 } as const satisfies Record<string, Href | ((...args: string[]) => Href)>;

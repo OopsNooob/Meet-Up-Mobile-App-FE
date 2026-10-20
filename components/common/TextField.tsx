@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { controlHeight, fontSize, fontWeight, radius, spacing } from '@/theme';
@@ -8,6 +8,8 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   error?: string | null;
   hint?: string;
   containerStyle?: StyleProp<ViewStyle>;
+  /** Dùng để focus ô kế tiếp (onSubmitEditing) */
+  ref?: Ref<TextInput>;
 }
 
 export function TextField({ label, error, hint, containerStyle, editable = true, onFocus, onBlur, ...inputProps }: TextFieldProps) {

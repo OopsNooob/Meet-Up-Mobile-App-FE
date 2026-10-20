@@ -3,12 +3,39 @@
     "login": "Login",
     "login_google": "Continue with Google",
     "register": "Sign up",
-    "login_admin_demo": "Sign in as Admin (demo)",
     "go_register": "Don't have an account? Sign up",
-    "back_to_login": "Back to sign in",
+    "back_to_login": "Already have an account? Sign in",
     "logout": "Sign out",
     "logout_confirm_title": "Sign out?",
-    "logout_confirm_message": "You'll need to sign in again to use MeetUp."
+    "logout_confirm_message": "You'll need to sign in again to use MeetUp.",
+    "login_subtitle": "Meet friends and pick a place faster",
+    "register_title": "Create account",
+    "register_subtitle": "Sign up to start meeting your friends",
+    "or": "or",
+    "email": "Email",
+    "email_placeholder": "you@example.com",
+    "password": "Password",
+    "password_placeholder": "Enter your password",
+    "password_hint": "At least {{min}} characters",
+    "confirm_password": "Confirm password",
+    "confirm_password_placeholder": "Re-enter your password",
+    "display_name": "Display name",
+    "display_name_placeholder": "Your friends will see this name",
+    "locked_reason": "Reason: {{reason}}",
+    "google_mock_title": "Google Sign-In (mock)",
+    "google_mock_message": "Sign in as google.user@gmail.com?",
+    "google_mock_continue": "Continue"
+  },
+  "validation": {
+    "email_required": "Please enter your email",
+    "email_invalid": "Invalid email format",
+    "email_taken": "This email is already registered. Sign in or use another email.",
+    "password_required": "Please enter your password",
+    "password_too_short": "Password must be at least {{min}} characters",
+    "confirm_password_required": "Please re-enter your password",
+    "confirm_password_mismatch": "Passwords do not match",
+    "display_name_required": "Please enter a display name",
+    "display_name_too_long": "Display name can be at most {{max}} characters"
   },
   "tabs": {
     "map": "Map",
@@ -256,6 +283,22 @@
     "gps_off": {
       "title": "Location services are off",
       "description": "Turn on location services on your device to continue."
+    },
+    "invalid_credentials": {
+      "title": "Incorrect email or password",
+      "description": "Check your sign-in details and try again."
+    },
+    "account_locked": {
+      "title": "Account locked",
+      "description": "Your account has been locked by an administrator, so you can't sign in. Contact support if you think this is a mistake."
+    },
+    "email_exists": {
+      "title": "Email already registered",
+      "description": "Sign in or use another email."
+    },
+    "google_unavailable": {
+      "title": "Google sign-in unavailable",
+      "description": "Google sign-in isn't configured on this build. Please use email and password."
     },
     "unknown": {
       "title": "Something went wrong",
