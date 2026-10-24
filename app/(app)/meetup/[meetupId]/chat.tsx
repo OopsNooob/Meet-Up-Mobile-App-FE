@@ -1,11 +1,13 @@
 import { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { ChatBubble, ChatMessage, MessageStatus } from '@/components/meetup/ChatBubble';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Sparkles } from 'lucide-react-native';
+import { routes } from '@/constants/routes';
 
 const CURRENT_USER_ID = 'u1';
 
@@ -24,6 +26,7 @@ export default function ChatScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
   const currentUserName = t('fe2.common.you');
   const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages(t));
@@ -41,7 +44,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       setMessages((prev) => prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m)));
     }, 800);
-    emit('chat:send', { meetupId: 'meetup-1', text });
+    emit('chat:send', { meetupId, text });
   }, 600);
 
   const handleShareLocation = useSinglePress(() => {
@@ -61,7 +64,7 @@ export default function ChatScreen() {
         prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
       );
     }, 600);
-    emit('chat:send', { meetupId: 'meetup-1', text: locText });
+    emit('chat:send', { meetupId, text: locText });
   }, 800);
 
   const handleRetry = useSinglePress((messageId: string) => {
@@ -73,6 +76,19 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push(routes.meetupRecommendations(meetupId))}
+              style={{ padding: 6, marginRight: 4 }}
+              accessibilityLabel={t('fe2.recommendation.screen_title')}
+            >
+              <Sparkles size={20} color={colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       {!isConnected && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineText}>{t('fe2.chat.offline_banner')}</Text>

@@ -17,6 +17,7 @@ export default function NotificationsTestScreen() {
     visible: boolean;
     title: string;
     body: string;
+    type?: 'meetup_invite' | 'meetup_finalized' | 'meetup_reminder' | 'meetup_cancelled';
   } | null>(null);
 
   // Khởi chạy FCM listener & xin quyền (bắt buộc trên Android 13+)
@@ -49,6 +50,7 @@ export default function NotificationsTestScreen() {
         visible: true,
         title: TITLES[type].title,
         body: TITLES[type].body,
+        type,
       });
     },
     1000
@@ -63,8 +65,15 @@ export default function NotificationsTestScreen() {
         body={bannerInfo?.body || ''}
         onDismiss={() => setBannerInfo(null)}
         onPress={() => {
+          const type = bannerInfo?.type;
           setBannerInfo(null);
-          router.push(routes.meetupDetail('test-meetup-id'));
+          if (type === 'meetup_finalized') {
+            router.push(routes.meetupRecommendations('test-meetup-id'));
+          } else if (type === 'meetup_reminder') {
+            router.push(routes.meetupChat('test-meetup-id'));
+          } else {
+            router.push(routes.meetupDetail('test-meetup-id'));
+          }
         }}
       />
 

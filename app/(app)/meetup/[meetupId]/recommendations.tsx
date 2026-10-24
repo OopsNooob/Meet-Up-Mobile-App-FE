@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { router } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   List,
@@ -17,6 +17,7 @@ import {
   Star,
   Clock,
   Sparkles,
+  MessageSquare,
   ChevronRight,
   X,
 } from 'lucide-react-native';
@@ -134,6 +135,7 @@ export default function RecommendationScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
+  const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -198,6 +200,20 @@ export default function RecommendationScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push(routes.meetupChat(meetupId))}
+              style={{ padding: 6, marginRight: 4 }}
+              accessibilityLabel={t('fe2.chat.screen_title')}
+            >
+              <MessageSquare size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
       {/* Missing Location Banner */}
       <View style={styles.missingBanner}>
         <Text style={styles.missingText}>

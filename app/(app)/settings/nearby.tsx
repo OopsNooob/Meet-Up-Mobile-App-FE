@@ -58,7 +58,7 @@ export default function NearbyScreen() {
   }, 1000);
 
   const handleSelectRadius = useSinglePress((r: RadiusOption) => setRadius(r), 300);
-  const handleCreateMeetup = useSinglePress(() => router.push(routes.tabMeetups), 600);
+  const handleCreateMeetup = useSinglePress(() => router.push(routes.meetupCreate), 600);
 
   const handleOptInToggle = (value: boolean) => {
     if (!value) {

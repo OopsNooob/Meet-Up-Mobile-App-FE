@@ -36,7 +36,11 @@ export default function AppLayout() {
       <Stack.Screen name="place/[placeId]/index" options={{ title: t('fe2.place_detail.screen_title') }} />
       <Stack.Screen
         name="place/[placeId]/explanation"
-        options={{ title: t('fe2.ai_explanation.screen_title'), presentation: 'modal' }}
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'fade',
+        }}
       />
       <Stack.Screen name="history" options={{ title: t('screens.history') }} />
       <Stack.Screen name="favorites" options={{ title: t('screens.favorites') }} />
@@ -51,8 +55,8 @@ export default function AppLayout() {
 
       <Stack.Screen name="dev/components" options={{ title: t('screens.dev_components') }} />
       <Stack.Screen name="dev/auth" options={{ title: 'Auth session (FE-01)' }} />
-      <Stack.Screen name="dev/notifications" options={{ title: 'Notifications (FE-13)' }} />
-      <Stack.Screen name="dev/performance" options={{ title: 'Performance (FE-20)' }} />
+      <Stack.Screen name="dev/notifications" options={{ title: t('fe2.dev_notifications.screen_title') }} />
+      <Stack.Screen name="dev/performance" options={{ title: t('fe2.dev_performance.screen_title') }} />
     </Stack>
   );
 }
