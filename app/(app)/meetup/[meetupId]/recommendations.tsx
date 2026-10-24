@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -338,6 +338,7 @@ export default function RecommendationScreen() {
         <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
+            provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={{
               latitude: 10.7745,

@@ -12,7 +12,7 @@
       "package": "com.anonymous.mobile",
       "config": {
         "googleMaps": {
-          "apiKey": "DUMMY_API_KEY_TO_PREVENT_CRASH"
+          "apiKey": "AIzaSyDmKg6VlATuSaqeg5LKw0M84lcHWv1EVDk"
         }
       }
     },
