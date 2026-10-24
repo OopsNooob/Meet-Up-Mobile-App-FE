@@ -15,7 +15,6 @@ type NearbyState = 'idle' | 'cooldown' | 'detected';
 const RADIUS_OPTIONS: RadiusOption[] = [500, 1000, 2000, 5000];
 const RADIUS_LABELS: Record<RadiusOption, string> = { 500: '500 m', 1000: '1 km', 2000: '2 km', 5000: '5 km' };
 const MOCK_STATE: NearbyState = 'cooldown';
-const MOCK_COOLDOWN = '1 giờ 23 phút';
 
 const MOCK_NEARBY_FRIENDS: NearbyFriendItem[] = [
   {
@@ -136,7 +135,7 @@ export default function NearbyScreen() {
         <View style={[styles.card, { backgroundColor: colors.warningLight, borderWidth: 1, borderColor: colors.warning }]}>
           <Text style={[styles.label, { color: colors.warning }]}>{t('fe2.nearby.cooldown_title')}</Text>
           <Text style={[styles.sublabel, { color: colors.warning }]}>
-            {t('fe2.nearby.cooldown_desc', { time: MOCK_COOLDOWN })}
+            {t('fe2.nearby.cooldown_desc', { time: t('fe2.nearby.cooldown_sample') })}
           </Text>
         </View>
       )}

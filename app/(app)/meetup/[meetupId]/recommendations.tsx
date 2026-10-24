@@ -331,17 +331,20 @@ export default function RecommendationScreen() {
             }}
           >
             {/* Member Markers */}
-            {MOCK_MEMBERS.map((m) => (
-              <Marker
-                key={m.id}
-                coordinate={{ latitude: m.lat, longitude: m.lng }}
-                title={`${t('fe2.recommendation.map_member_label')}: ${m.name}`}
-              >
-                <View style={styles.memberPin}>
-                  <Text style={styles.memberPinText}>{m.name[0]}</Text>
-                </View>
-              </Marker>
-            ))}
+            {MOCK_MEMBERS.map((m) => {
+              const displayName = m.name === 'Bạn' ? t('fe2.common.you') : m.name;
+              return (
+                <Marker
+                  key={m.id}
+                  coordinate={{ latitude: m.lat, longitude: m.lng }}
+                  title={`${t('fe2.recommendation.map_member_label')}: ${displayName}`}
+                >
+                  <View style={styles.memberPin}>
+                    <Text style={styles.memberPinText}>{displayName[0]}</Text>
+                  </View>
+                </Marker>
+              );
+            })}
 
             {/* Recommended Place Markers */}
             {processedPlaces.map((place) => {
@@ -394,7 +397,7 @@ export default function RecommendationScreen() {
                 )}
                 <View style={styles.metaRow}>
                   <Clock size={13} color={colors.primary} />
-                  <Text style={styles.metaText}>Avg {selectedMapPlace.avgEta} {t('fe2.common.min')}</Text>
+                  <Text style={styles.metaText}>{t('fe2.recommendation.avg_prefix')} {selectedMapPlace.avgEta} {t('fe2.common.min')}</Text>
                 </View>
               </View>
 

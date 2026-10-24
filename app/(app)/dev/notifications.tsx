@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { scheduleMockNotification, useFCM } from '@/hooks/useFCM';
 import { useSinglePress } from '@/hooks/useSinglePress';
@@ -8,6 +9,7 @@ import { InAppNotificationBanner } from '@/components/common/InAppNotificationBa
 import { routes } from '@/constants/routes';
 
 export default function NotificationsTestScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -26,20 +28,20 @@ export default function NotificationsTestScreen() {
 
       const TITLES: Record<typeof type, { title: string; body: string }> = {
         meetup_invite: {
-          title: '📩 Lời mời MeetUp mới',
-          body: 'Việt vừa mời bạn tham gia buổi cà phê cuối tuần này!',
+          title: t('fe2.dev_notifications.invite_title'),
+          body: t('fe2.dev_notifications.invite_body'),
         },
         meetup_finalized: {
-          title: '📍 Đã chốt địa điểm',
-          body: 'Địa điểm "The Coffee House - Nguyễn Huệ" đã được chọn với số phiếu cao nhất.',
+          title: t('fe2.dev_notifications.finalized_title'),
+          body: t('fe2.dev_notifications.finalized_body'),
         },
         meetup_reminder: {
-          title: '⏰ Nhắc nhở lịch hẹn',
-          body: 'Buổi hẹn của bạn sẽ bắt đầu trong 30 phút nữa. Hãy chuẩn bị nhé!',
+          title: t('fe2.dev_notifications.reminder_title'),
+          body: t('fe2.dev_notifications.reminder_body'),
         },
         meetup_cancelled: {
-          title: '❌ Meetup bị hủy',
-          body: 'Buổi hẹn đã bị trưởng nhóm hủy bỏ.',
+          title: t('fe2.dev_notifications.cancelled_title'),
+          body: t('fe2.dev_notifications.cancelled_body'),
         },
       };
 
@@ -67,35 +69,32 @@ export default function NotificationsTestScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Test Notifications & Deep Links (FE-13)</Text>
-        <Text style={styles.subtitle}>
-          Bấm vào các nút dưới đây để kích hoạt thông báo foreground (In-App Banner) và thông báo hệ thống (FCM). 
-          Khi bấm vào thông báo, hệ thống sẽ tự động điều hướng (Deep Link) đến màn hình tương ứng.
-        </Text>
+        <Text style={styles.title}>{t('fe2.dev_notifications.screen_title')}</Text>
+        <Text style={styles.subtitle}>{t('fe2.dev_notifications.screen_subtitle')}</Text>
 
         <TouchableOpacity style={styles.button} onPress={() => handleTest('meetup_invite')}>
-          <Text style={styles.buttonText}>📩 Lời mời MeetUp mới</Text>
+          <Text style={styles.buttonText}>{t('fe2.dev_notifications.btn_invite')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.success }]}
           onPress={() => handleTest('meetup_finalized')}
         >
-          <Text style={styles.buttonText}>📍 Đã chốt địa điểm</Text>
+          <Text style={styles.buttonText}>{t('fe2.dev_notifications.btn_finalized')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.warning }]}
           onPress={() => handleTest('meetup_reminder')}
         >
-          <Text style={styles.buttonText}>⏰ Nhắc nhở lịch hẹn</Text>
+          <Text style={styles.buttonText}>{t('fe2.dev_notifications.btn_reminder')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.danger }]}
           onPress={() => handleTest('meetup_cancelled')}
         >
-          <Text style={styles.buttonText}>❌ Meetup bị hủy</Text>
+          <Text style={styles.buttonText}>{t('fe2.dev_notifications.btn_cancelled')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

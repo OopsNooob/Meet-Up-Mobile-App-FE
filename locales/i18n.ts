@@ -8,7 +8,9 @@ const resources = {
   vi: { translation: vi },
 };
 
-i18n.use(initReactI18next).init({
+const i18nInstance = i18n;
+
+i18nInstance.use(initReactI18next).init({
   resources,
   lng: 'vi', // Ngôn ngữ mặc định
   fallbackLng: 'en',
@@ -17,4 +19,4 @@ i18n.use(initReactI18next).init({
   },
 });
 
-export default i18n;
+export default i18nInstance;

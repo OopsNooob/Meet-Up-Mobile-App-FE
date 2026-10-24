@@ -60,7 +60,10 @@
       "retry": "Thử lại",
       "understood": "Đã hiểu",
       "loading": "Đang tải...",
-      "send_directions": "🗺 Mở Google Maps"
+      "send_directions": "🗺 Mở Google Maps",
+      "error": "Lỗi",
+      "maps_open_error": "Không thể mở ứng dụng bản đồ",
+      "you": "Bạn"
     },
     "location": {
       "screen_title": "Cài đặt vị trí",
@@ -153,6 +156,8 @@
       "view_list": "Danh sách",
       "view_map": "Bản đồ",
       "filter_sort_btn": "Lọc & Sắp xếp",
+      "filter_section": "Bộ lọc",
+      "avg_prefix": "Trung bình",
       "sort_by": "Sắp xếp theo",
       "sort_avg_eta": "Avg ETA nhanh nhất",
       "sort_max_eta": "Max ETA thấp nhất",
@@ -170,7 +175,8 @@
       "reviews_count": "{{count}} đánh giá",
       "eta_section": "Thời gian di chuyển",
       "ask_ai": "Vì sao AI gợi ý nơi này? 🤖",
-      "vote_this_place": "Bình chọn địa điểm này 🗳️"
+      "vote_this_place": "Bình chọn địa điểm này 🗳️",
+      "voted_this_place": "✓ Đã bình chọn địa điểm này"
     },
     "chat": {
       "screen_title": "Chat nhóm",
@@ -179,14 +185,23 @@
       "status_pending": "⏳ Đang gửi...",
       "status_error": "⚠ Lỗi — Thử lại",
       "share_location_btn": "Gửi vị trí",
-      "location_shared_msg": "📍 Tôi đang ở cách điểm hẹn ~1.2 km (ETA: 8 phút)"
+      "location_shared_msg": "📍 Tôi đang ở cách điểm hẹn ~1.2 km (ETA: 8 phút)",
+      "mock_msg_1": "Tụi mình gặp ở quán nào vậy?",
+      "mock_msg_2": "The Coffee House ổn nè 👍",
+      "mock_msg_3": "Ok mình ở gần đó, ETA chỉ 8 phút thôi",
+      "mock_msg_pending": "Đang gửi...",
+      "mock_msg_error": "Tin nhắn lỗi này (thử lại)"
     },
     "ai_explanation": {
       "screen_title": "Vì sao gợi ý?",
       "loading": "Đang phân tích với AI...",
       "ai_badge": "✨ Giải thích từ AI",
       "fallback_badge": "⚠ AI không phản hồi — Lý do từ hệ thống",
-      "disclaimer": "* Giải thích này chỉ mang tính tham khảo và không thay đổi thứ tự gợi ý."
+      "disclaimer": "* Giải thích này chỉ mang tính tham khảo và không thay đổi thứ tự gợi ý.",
+      "mock_text": "Địa điểm này được gợi ý vì có thời gian di chuyển ngắn nhất cho toàn nhóm (Max ETA 18 phút) và khớp với sở thích cà phê của đa số thành viên. Rating 4.5/5 từ cộng đồng cũng cho thấy chất lượng ổn định.",
+      "fallback_reason_1": "Max ETA thấp hơn các địa điểm khác (18 phút)",
+      "fallback_reason_2": "Avg ETA cân bằng nhất trong nhóm (12 phút)",
+      "fallback_reason_3": "Phù hợp với sở thích 'Cà phê' của 2/3 thành viên"
     },
     "nearby": {
       "screen_title": "Bạn bè ở gần",
@@ -201,6 +216,7 @@
       "radius_section": "Bán kính phát hiện",
       "cooldown_title": "⏱ Đang chờ trước khi gợi ý tiếp",
       "cooldown_desc": "Để tránh làm phiền, hệ thống giới hạn 1 gợi ý / 2 giờ cho mỗi cặp bạn bè.\nCòn lại: {{time}}",
+      "cooldown_sample": "1 giờ 23 phút",
       "detected_title": "🎉 Bạn và một người bạn đang ở gần nhau!",
       "create_meetup": "Tạo Meetup ngay",
       "idle_text": "🔍 Đang theo dõi... Chưa phát hiện bạn bè nào trong bán kính {{radius}}",
@@ -214,6 +230,33 @@
     "notifications": {
       "in_app_title": "Thông báo mới",
       "tap_to_open": "Chạm để xem chi tiết"
+    },
+    "dev_notifications": {
+      "screen_title": "Test Notifications & Deep Links (FE-13)",
+      "screen_subtitle": "Bấm vào các nút dưới đây để kích hoạt thông báo foreground (In-App Banner) và thông báo hệ thống (FCM). Khi bấm vào thông báo, hệ thống sẽ tự động điều hướng (Deep Link) đến màn hình tương ứng.",
+      "btn_invite": "📩 Lời mời MeetUp mới",
+      "btn_finalized": "📍 Đã chốt địa điểm",
+      "btn_reminder": "⏰ Nhắc nhở lịch hẹn",
+      "btn_cancelled": "❌ Meetup bị hủy",
+      "invite_title": "📩 Lời mời MeetUp mới",
+      "invite_body": "Việt vừa mời bạn tham gia buổi cà phê cuối tuần này!",
+      "finalized_title": "📍 Đã chốt địa điểm",
+      "finalized_body": "Địa điểm \"The Coffee House - Nguyễn Huệ\" đã được chọn với số phiếu cao nhất.",
+      "reminder_title": "⏰ Nhắc nhở lịch hẹn",
+      "reminder_body": "Buổi hẹn của bạn sẽ bắt đầu trong 30 phút nữa. Hãy chuẩn bị nhé!",
+      "cancelled_title": "❌ Meetup bị hủy",
+      "cancelled_body": "Buổi hẹn đã bị trưởng nhóm hủy bỏ."
+    },
+    "dev_performance": {
+      "screen_title": "Hiệu năng Mobile & Demo (FE-20)",
+      "metrics_title": "Chỉ số hiệu năng",
+      "render_cycles": "Số chu kỳ Render:",
+      "location_updates": "Cập nhật vị trí/giây:",
+      "socket_latency": "Độ trễ Socket:",
+      "memory_usage": "Bộ nhớ JS sử dụng:",
+      "tools_title": "Công cụ Demo",
+      "start_scenario_1": "Khởi động kịch bản Demo 1",
+      "reset_state": "Reset trạng thái"
     }
   },
   "common": {

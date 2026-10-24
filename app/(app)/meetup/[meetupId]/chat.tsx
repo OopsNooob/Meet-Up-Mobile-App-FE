@@ -8,22 +8,25 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 import { MapPin } from 'lucide-react-native';
 
 const CURRENT_USER_ID = 'u1';
-const CURRENT_USER_NAME = 'Bạn';
 
-const INITIAL_MESSAGES: ChatMessage[] = [
-  { id: 'm1', userId: 'u2', userName: 'Việt', text: 'Tụi mình gặp ở quán nào vậy?', timestamp: new Date(Date.now() - 5 * 60 * 1000), status: 'sent', isOwn: false },
-  { id: 'm2', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Tao thấy The Coffee House ổn nè 👍', timestamp: new Date(Date.now() - 4 * 60 * 1000), status: 'sent', isOwn: true },
-  { id: 'm3', userId: 'u3', userName: 'Minh', text: 'Ok mình ở gần đó, ETA tao chỉ 8 phút thôi', timestamp: new Date(Date.now() - 3 * 60 * 1000), status: 'sent', isOwn: false },
-  { id: 'm4', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Đang gửi...', timestamp: new Date(Date.now() - 60 * 1000), status: 'pending', isOwn: true },
-  { id: 'm5', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Tin nhắn lỗi này (thử lại)', timestamp: new Date(Date.now() - 30 * 1000), status: 'error', isOwn: true },
-];
+function getInitialMessages(t: (key: string) => string): ChatMessage[] {
+  const currentUserName = t('fe2.common.you');
+  return [
+    { id: 'm1', userId: 'u2', userName: 'Việt', text: t('fe2.chat.mock_msg_1'), timestamp: new Date(Date.now() - 5 * 60 * 1000), status: 'sent', isOwn: false },
+    { id: 'm2', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_2'), timestamp: new Date(Date.now() - 4 * 60 * 1000), status: 'sent', isOwn: true },
+    { id: 'm3', userId: 'u3', userName: 'Minh', text: t('fe2.chat.mock_msg_3'), timestamp: new Date(Date.now() - 3 * 60 * 1000), status: 'sent', isOwn: false },
+    { id: 'm4', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_pending'), timestamp: new Date(Date.now() - 60 * 1000), status: 'pending', isOwn: true },
+    { id: 'm5', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_error'), timestamp: new Date(Date.now() - 30 * 1000), status: 'error', isOwn: true },
+  ];
+}
 
 export default function ChatScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const currentUserName = t('fe2.common.you');
+  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages(t));
   const [inputText, setInputText] = useState('');
   const [isConnected] = useState(true);
   const flatListRef = useRef<FlatList>(null);
@@ -32,7 +35,7 @@ export default function ChatScreen() {
   const handleSend = useSinglePress(() => {
     const text = inputText.trim();
     if (!text) return;
-    const newMsg: ChatMessage = { id: `m_${Date.now()}`, userId: CURRENT_USER_ID, userName: CURRENT_USER_NAME, text, timestamp: new Date(), status: 'pending', isOwn: true };
+    const newMsg: ChatMessage = { id: `m_${Date.now()}`, userId: CURRENT_USER_ID, userName: currentUserName, text, timestamp: new Date(), status: 'pending', isOwn: true };
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
     setTimeout(() => {
@@ -46,7 +49,7 @@ export default function ChatScreen() {
     const newMsg: ChatMessage = {
       id: `m_${Date.now()}`,
       userId: CURRENT_USER_ID,
-      userName: CURRENT_USER_NAME,
+      userName: currentUserName,
       text: locText,
       timestamp: new Date(),
       status: 'pending',

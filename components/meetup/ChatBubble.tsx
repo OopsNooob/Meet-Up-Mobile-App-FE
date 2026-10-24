@@ -24,12 +24,12 @@ type Props = {
   onRetry?: (messageId: string) => void;
 };
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+function formatTime(date: Date, lang: string): string {
+  return date.toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function ChatBubble({ message, onRetry }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -49,7 +49,7 @@ export function ChatBubble({ message, onRetry }: Props) {
         </Text>
       </View>
       <View style={[styles.footer, message.isOwn && styles.footerOwn]}>
-        <Text style={[styles.time, { color: colors.placeholder }]}>{formatTime(message.timestamp)}</Text>
+        <Text style={[styles.time, { color: colors.placeholder }]}>{formatTime(message.timestamp, i18n.language)}</Text>
         {message.isOwn && message.status === 'pending' && (
           <Text style={[styles.statusText, { color: colors.placeholder }]}>{t('fe2.chat.status_pending')}</Text>
         )}
