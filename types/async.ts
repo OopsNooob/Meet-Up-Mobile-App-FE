@@ -8,6 +8,10 @@ export const APP_ERROR_CODES = [
   'server',
   'gps_denied',
   'gps_off',
+  'invalid_credentials',
+  'account_locked',
+  'email_exists',
+  'google_unavailable',
   'unknown',
 ] as const;
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

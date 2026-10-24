@@ -72,7 +72,7 @@ function navigateFromNotification(data: Record<string, unknown>) {
 
 // ──── Hook chính ──────────────────────────────────────────────────────────
 export function useFCM() {
-  const token = useAuthStore((s) => s.token);
+  const token = useAuthStore((s) => s.accessToken);
   const notifListener = useRef<EventSubscription | null>(null);
   const responseListener = useRef<EventSubscription | null>(null);
 

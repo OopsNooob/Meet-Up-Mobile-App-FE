@@ -4,6 +4,7 @@ export * from './Badge';
 export * from './Button';
 export * from './Card';
 export * from './ConfirmDialog';
+export * from './InlineAlert';
 export * from './LanguageToggle';
 export * from './PlaceholderScreen';
 export * from './Screen';

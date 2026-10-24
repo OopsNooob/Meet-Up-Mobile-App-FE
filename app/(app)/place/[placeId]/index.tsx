@@ -23,10 +23,16 @@ const MOCK_DETAIL = {
 };
 
 export default function PlaceDetailScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
+
+  const openingHours = useMemo(() => {
+    return i18n.language === 'vi'
+      ? ['Thứ 2–6: 7:00 – 22:00', 'Thứ 7–CN: 7:30 – 22:30']
+      : ['Mon–Fri: 7:00 AM – 10:00 PM', 'Sat–Sun: 7:30 AM – 10:30 PM'];
+  }, [i18n.language]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -60,7 +66,7 @@ export default function PlaceDetailScreen() {
   const handleOpenNavigation = useSinglePress(() => {
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert(t('fe2.common.error'), 'Could not open maps application');
+      Alert.alert(t('fe2.common.error'), t('fe2.common.maps_open_error'));
     });
   }, 1000);
 
@@ -106,7 +112,7 @@ export default function PlaceDetailScreen() {
             <Text style={styles.noDataHint}>{t('fe2.place_detail.no_data_hint')}</Text>
           </>
         )}
-        {place.isOpenNow !== null && place.openingHours.map((h, i) => (
+        {place.isOpenNow !== null && openingHours.map((h, i) => (
           <Text key={i} style={styles.hoursText}>{h}</Text>
         ))}
       </View>
@@ -136,7 +142,7 @@ export default function PlaceDetailScreen() {
         </View>
         {place.etaPerMember.map((m) => (
           <View key={m.userId} style={styles.memberRow}>
-            <Text style={styles.memberName}>{m.name}</Text>
+            <Text style={styles.memberName}>{m.name === 'Bạn' ? t('fe2.common.you') : m.name}</Text>
             <Text style={[styles.memberEta, { color: colors.primary }]}>{m.eta} {t('fe2.common.min')}</Text>
           </View>
         ))}
@@ -170,7 +176,7 @@ export default function PlaceDetailScreen() {
               { color: hasVoted ? colors.success : colors.subtext },
             ]}
           >
-            {hasVoted ? '✓ Đã bình chọn địa điểm này' : '🗳️ Bình chọn địa điểm này'}
+            {hasVoted ? t('fe2.place_detail.voted_this_place') : t('fe2.place_detail.vote_this_place')}
           </Text>
         </TouchableOpacity>
 

@@ -1,8 +1,10 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useMemo, useState, useEffect } from 'react';
 
 export default function PerformanceScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -20,35 +22,35 @@ export default function PerformanceScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Mobile Performance & Demo (FE-20)</Text>
+      <Text style={styles.title}>{t('fe2.dev_performance.screen_title')}</Text>
       
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Metrics</Text>
+        <Text style={styles.cardTitle}>{t('fe2.dev_performance.metrics_title')}</Text>
         <View style={styles.row}>
-          <Text style={styles.label}>Render Cycles:</Text>
+          <Text style={styles.label}>{t('fe2.dev_performance.render_cycles')}</Text>
           <Text style={styles.value}>{renderCount}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Location Updates/s:</Text>
+          <Text style={styles.label}>{t('fe2.dev_performance.location_updates')}</Text>
           <Text style={styles.value}>{locationUpdates}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Socket Latency:</Text>
+          <Text style={styles.label}>{t('fe2.dev_performance.socket_latency')}</Text>
           <Text style={[styles.value, { color: colors.success }]}>~45ms</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Memory Usage (JS):</Text>
+          <Text style={styles.label}>{t('fe2.dev_performance.memory_usage')}</Text>
           <Text style={styles.value}>42 MB</Text>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Demo Tools</Text>
+        <Text style={styles.cardTitle}>{t('fe2.dev_performance.tools_title')}</Text>
         <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Khởi động kịch bản Demo 1</Text>
+          <Text style={styles.buttonText}>{t('fe2.dev_performance.start_scenario_1')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.button, { backgroundColor: colors.surfaceAlt, marginTop: 8 }]}>
-          <Text style={[styles.buttonText, { color: colors.text }]}>Reset trạng thái</Text>
+          <Text style={[styles.buttonText, { color: colors.text }]}>{t('fe2.dev_performance.reset_state')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

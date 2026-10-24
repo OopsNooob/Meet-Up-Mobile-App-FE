@@ -5,11 +5,14 @@ import {
   AlertTriangle,
   Clock,
   Inbox,
+  KeyRound,
   LocateOff,
   Lock,
+  MailWarning,
   SearchX,
   ServerCrash,
   ShieldAlert,
+  UserX,
   WifiOff,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -67,6 +70,10 @@ const ERROR_ICONS: Record<AppErrorCode, LucideIcon> = {
   server: ServerCrash,
   gps_denied: LocateOff,
   gps_off: LocateOff,
+  invalid_credentials: KeyRound,
+  account_locked: UserX,
+  email_exists: MailWarning,
+  google_unavailable: AlertTriangle,
   unknown: AlertTriangle,
 };
 

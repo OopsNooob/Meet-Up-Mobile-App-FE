@@ -33,6 +33,7 @@ export default function ProfileTab() {
   ];
   const devLinks: MenuLink[] = [
     { label: t('screens.dev_components'), href: routes.devComponents },
+    { label: 'Auth session (FE-01)', href: routes.devAuth },
     { label: 'Notifications (FE-13)', href: routes.devNotifications },
     { label: 'Performance (FE-20)', href: routes.devPerformance },
     { label: 'Recommendation (FE-10)', href: routes.meetupRecommendations('demo-meetup') },
@@ -92,10 +93,8 @@ export default function ProfileTab() {
         confirmLabel={t('auth.logout')}
         tone="danger"
         onCancel={() => setConfirmLogout(false)}
-        onConfirm={() => {
-          setConfirmLogout(false);
-          logout();
-        }}
+        // logout() gọi API rồi xóa phiên; dialog tự hiện loading tới khi xong, Stack.Protected đưa về Đăng nhập
+        onConfirm={() => logout()}
       />
     </Screen>
   );

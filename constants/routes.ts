@@ -47,10 +47,16 @@ export const routes = {
   adminReports: '/admin/reports',
 
   devComponents: '/dev/components',
+  devAuth: '/dev/auth',
   devNotifications: '/dev/notifications',
   devPerformance: '/dev/performance',
 } as const satisfies Record<string, Href | ((...args: string[]) => Href)>;
 
 export const deepLinks = {
   meetup: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}`),
+  recommendations: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/recommendations`),
+  chat: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/chat`),
+  place: (placeId: string) => Linking.createURL(`/place/${placeId}`),
+  locationSettings: () => Linking.createURL('/settings/location'),
+  nearbySettings: () => Linking.createURL('/settings/nearby'),
 };

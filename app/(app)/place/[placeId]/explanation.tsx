@@ -7,15 +7,6 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 
 type ExplainState = 'loading' | 'success' | 'fallback';
 
-const FALLBACK_REASONS = [
-  'Max ETA thấp hơn các địa điểm khác (18 phút)',
-  'Avg ETA cân bằng nhất trong nhóm (12 phút)',
-  'Phù hợp với sở thích "Cà phê" của 2/3 thành viên',
-];
-
-const MOCK_AI_EXPLANATION =
-  'Địa điểm này được gợi ý vì có thời gian di chuyển ngắn nhất cho toàn nhóm (Max ETA 18 phút) và khớp với sở thích cà phê của đa số thành viên. Rating 4.5/5 từ cộng đồng cũng cho thấy chất lượng ổn định.';
-
 export default function AiExplanationScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -25,16 +16,29 @@ export default function AiExplanationScreen() {
   const [state, setState] = useState<ExplainState>('loading');
   const [explanation, setExplanation] = useState('');
 
+  const fallbackReasons = useMemo(
+    () => [
+      t('fe2.ai_explanation.fallback_reason_1'),
+      t('fe2.ai_explanation.fallback_reason_2'),
+      t('fe2.ai_explanation.fallback_reason_3'),
+    ],
+    [t]
+  );
+
   const handleClose = useSinglePress(() => router.back(), 500);
 
   useEffect(() => {
     const shouldFail = Math.random() < 0.3;
     const timer = setTimeout(() => {
-      if (shouldFail) { setState('fallback'); }
-      else { setExplanation(MOCK_AI_EXPLANATION); setState('success'); }
+      if (shouldFail) {
+        setState('fallback');
+      } else {
+        setExplanation(t('fe2.ai_explanation.mock_text'));
+        setState('success');
+      }
     }, 1500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [t]);
 
   return (
     <View style={styles.overlay}>
@@ -68,7 +72,7 @@ export default function AiExplanationScreen() {
               <View style={[styles.aiBadge, { backgroundColor: colors.warningLight }]}>
                 <Text style={[styles.aiBadgeText, { color: colors.warning }]}>{t('fe2.ai_explanation.fallback_badge')}</Text>
               </View>
-              {FALLBACK_REASONS.map((reason, i) => (
+              {fallbackReasons.map((reason, i) => (
                 <View key={i} style={styles.fallbackItem}>
                   <Text style={[styles.bullet, { color: colors.subtext }]}>•</Text>
                   <Text style={styles.fallbackText}>{reason}</Text>

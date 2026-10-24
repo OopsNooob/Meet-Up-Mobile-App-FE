@@ -47,7 +47,7 @@ function FriendInfoContent({
     }
     const url = `https://www.google.com/maps/dir/?api=1&destination=${friend.lat},${friend.lng}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert(t('fe2.common.error'), 'Could not open maps application');
+      Alert.alert(t('fe2.common.error'), t('fe2.common.maps_open_error'));
     });
   }, 1000);
 

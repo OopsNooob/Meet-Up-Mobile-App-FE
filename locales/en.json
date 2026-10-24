@@ -3,12 +3,39 @@
     "login": "Login",
     "login_google": "Continue with Google",
     "register": "Sign up",
-    "login_admin_demo": "Sign in as Admin (demo)",
     "go_register": "Don't have an account? Sign up",
-    "back_to_login": "Back to sign in",
+    "back_to_login": "Already have an account? Sign in",
     "logout": "Sign out",
     "logout_confirm_title": "Sign out?",
-    "logout_confirm_message": "You'll need to sign in again to use MeetUp."
+    "logout_confirm_message": "You'll need to sign in again to use MeetUp.",
+    "login_subtitle": "Meet friends and pick a place faster",
+    "register_title": "Create account",
+    "register_subtitle": "Sign up to start meeting your friends",
+    "or": "or",
+    "email": "Email",
+    "email_placeholder": "you@example.com",
+    "password": "Password",
+    "password_placeholder": "Enter your password",
+    "password_hint": "At least {{min}} characters",
+    "confirm_password": "Confirm password",
+    "confirm_password_placeholder": "Re-enter your password",
+    "display_name": "Display name",
+    "display_name_placeholder": "Your friends will see this name",
+    "locked_reason": "Reason: {{reason}}",
+    "google_mock_title": "Google Sign-In (mock)",
+    "google_mock_message": "Sign in as google.user@gmail.com?",
+    "google_mock_continue": "Continue"
+  },
+  "validation": {
+    "email_required": "Please enter your email",
+    "email_invalid": "Invalid email format",
+    "email_taken": "This email is already registered. Sign in or use another email.",
+    "password_required": "Please enter your password",
+    "password_too_short": "Password must be at least {{min}} characters",
+    "confirm_password_required": "Please re-enter your password",
+    "confirm_password_mismatch": "Passwords do not match",
+    "display_name_required": "Please enter a display name",
+    "display_name_too_long": "Display name can be at most {{max}} characters"
   },
   "tabs": {
     "map": "Map",
@@ -33,7 +60,10 @@
       "retry": "Retry",
       "understood": "Got it",
       "loading": "Loading...",
-      "send_directions": "🗺 Open Google Maps"
+      "send_directions": "🗺 Open Google Maps",
+      "error": "Error",
+      "maps_open_error": "Could not open maps application",
+      "you": "You"
     },
     "location": {
       "screen_title": "Location Settings",
@@ -126,6 +156,8 @@
       "view_list": "List",
       "view_map": "Map",
       "filter_sort_btn": "Filter & Sort",
+      "filter_section": "Filter",
+      "avg_prefix": "Avg",
       "sort_by": "Sort by",
       "sort_avg_eta": "Fastest Avg ETA",
       "sort_max_eta": "Lowest Max ETA",
@@ -143,7 +175,8 @@
       "reviews_count": "{{count}} reviews",
       "eta_section": "Travel Time",
       "ask_ai": "Why did AI suggest this? 🤖",
-      "vote_this_place": "Vote for this place 🗳️"
+      "vote_this_place": "Vote for this place 🗳️",
+      "voted_this_place": "✓ Voted for this place"
     },
     "chat": {
       "screen_title": "Group Chat",
@@ -152,14 +185,23 @@
       "status_pending": "⏳ Sending...",
       "status_error": "⚠ Failed — Tap to retry",
       "share_location_btn": "Share Location",
-      "location_shared_msg": "📍 I'm about ~1.2 km away from the venue (ETA: 8 min)"
+      "location_shared_msg": "📍 I'm about ~1.2 km away from the venue (ETA: 8 min)",
+      "mock_msg_1": "Where should we meet up?",
+      "mock_msg_2": "The Coffee House looks good 👍",
+      "mock_msg_3": "Ok I'm nearby, my ETA is only 8 minutes",
+      "mock_msg_pending": "Sending...",
+      "mock_msg_error": "Failed message (tap retry)"
     },
     "ai_explanation": {
       "screen_title": "Why this suggestion?",
       "loading": "Analyzing with AI...",
       "ai_badge": "✨ AI Explanation",
       "fallback_badge": "⚠ AI unavailable — Reason from algorithm",
-      "disclaimer": "* This explanation is informational only and does not change the ranking."
+      "disclaimer": "* This explanation is informational only and does not change the ranking.",
+      "mock_text": "This place is recommended because it offers the shortest travel time for the entire group (Max ETA 18 min) and aligns with the coffee preferences of most members. A 4.5/5 community rating also confirms consistent quality.",
+      "fallback_reason_1": "Lower Max ETA compared to other places (18 min)",
+      "fallback_reason_2": "Most balanced Avg ETA across group (12 min)",
+      "fallback_reason_3": "Matches 'Coffee' preference for 2/3 members"
     },
     "nearby": {
       "screen_title": "Nearby Friends",
@@ -174,6 +216,7 @@
       "radius_section": "Detection radius",
       "cooldown_title": "⏱ Waiting before next suggestion",
       "cooldown_desc": "To avoid spam, suggestions are limited to once per 2 hours per friend pair.\nRemaining: {{time}}",
+      "cooldown_sample": "1 hr 23 min",
       "detected_title": "🎉 You and a friend are nearby!",
       "create_meetup": "Create Meetup",
       "idle_text": "🔍 Watching... No friends detected within {{radius}}",
@@ -187,6 +230,33 @@
     "notifications": {
       "in_app_title": "New Notification",
       "tap_to_open": "Tap to view details"
+    },
+    "dev_notifications": {
+      "screen_title": "Test Notifications & Deep Links (FE-13)",
+      "screen_subtitle": "Tap the buttons below to trigger foreground in-app banners and system FCM notifications. Tapping a notification will deep link to the corresponding screen.",
+      "btn_invite": "📩 New MeetUp Invitation",
+      "btn_finalized": "📍 Location Finalized",
+      "btn_reminder": "⏰ Meetup Reminder",
+      "btn_cancelled": "❌ Meetup Cancelled",
+      "invite_title": "📩 New MeetUp Invitation",
+      "invite_body": "Viet invited you to coffee this weekend!",
+      "finalized_title": "📍 Location Finalized",
+      "finalized_body": "Location 'The Coffee House - Nguyen Hue' was selected with the highest votes.",
+      "reminder_title": "⏰ Meetup Reminder",
+      "reminder_body": "Your meetup starts in 30 minutes. Get ready!",
+      "cancelled_title": "❌ Meetup Cancelled",
+      "cancelled_body": "The meetup was cancelled by the host."
+    },
+    "dev_performance": {
+      "screen_title": "Mobile Performance & Demo (FE-20)",
+      "metrics_title": "Metrics",
+      "render_cycles": "Render Cycles:",
+      "location_updates": "Location Updates/s:",
+      "socket_latency": "Socket Latency:",
+      "memory_usage": "Memory Usage (JS):",
+      "tools_title": "Demo Tools",
+      "start_scenario_1": "Launch Demo Scenario 1",
+      "reset_state": "Reset State"
     }
   },
   "common": {
@@ -256,6 +326,22 @@
     "gps_off": {
       "title": "Location services are off",
       "description": "Turn on location services on your device to continue."
+    },
+    "invalid_credentials": {
+      "title": "Incorrect email or password",
+      "description": "Check your sign-in details and try again."
+    },
+    "account_locked": {
+      "title": "Account locked",
+      "description": "Your account has been locked by an administrator, so you can't sign in. Contact support if you think this is a mistake."
+    },
+    "email_exists": {
+      "title": "Email already registered",
+      "description": "Sign in or use another email."
+    },
+    "google_unavailable": {
+      "title": "Google sign-in unavailable",
+      "description": "Google sign-in isn't configured on this build. Please use email and password."
     },
     "unknown": {
       "title": "Something went wrong",

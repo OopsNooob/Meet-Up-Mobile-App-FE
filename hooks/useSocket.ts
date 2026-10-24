@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { useAuthStore } from '../store/useAuthStore';
+import { onLogout, useAuthStore } from '../store/useAuthStore';
 
 const SOCKET_URL = 'http://10.0.2.2:3000'; // Android Emulator → localhost
 
@@ -29,7 +29,7 @@ export type LocationUpdatedPayload = {
 let globalSocket: Socket | null = null;
 
 export function useSocket() {
-  const token = useAuthStore((s) => s.token);
+  const token = useAuthStore((s) => s.accessToken);
   const listenerMapRef = useRef<Map<string, (...args: any[]) => void>>(new Map());
 
   // Khởi tạo kết nối 1 lần duy nhất
@@ -101,6 +101,9 @@ export function useSocket() {
 
   return { on, off, emit, isConnected };
 }
+
+// FE-01: phiên kết thúc (đăng xuất / hết hạn / bị khóa) → ngắt socket để không giữ kết nối của user cũ
+onLogout(() => disconnectSocket());
 
 /** Gọi khi logout để ngắt kết nối hoàn toàn */
 export function disconnectSocket() {

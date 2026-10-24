@@ -19,8 +19,8 @@ export default function RootLayout() {
   useFCM();
 
   useEffect(() => {
-    // TODO FE-01: hydrate phiên đăng nhập thật từ secure store
-    useAuthStore.setState({ isHydrated: true });
+    // Đọc phiên đã lưu + xác minh với server; splash che tới khi xong → vào (app) hoặc (auth)
+    void useAuthStore.getState().hydrate();
 
     handleInitialNotification();
   }, []);

@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { router } from 'expo-router';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   List,
@@ -17,6 +17,7 @@ import {
   Star,
   Clock,
   Sparkles,
+  MessageSquare,
   ChevronRight,
   X,
 } from 'lucide-react-native';
@@ -134,6 +135,7 @@ export default function RecommendationScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
+  const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -198,6 +200,20 @@ export default function RecommendationScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push(routes.meetupChat(meetupId))}
+              style={{ padding: 6, marginRight: 4 }}
+              accessibilityLabel={t('fe2.chat.screen_title')}
+            >
+              <MessageSquare size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
       {/* Missing Location Banner */}
       <View style={styles.missingBanner}>
         <Text style={styles.missingText}>
@@ -322,6 +338,7 @@ export default function RecommendationScreen() {
         <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
+            provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={{
               latitude: 10.7745,
@@ -331,17 +348,20 @@ export default function RecommendationScreen() {
             }}
           >
             {/* Member Markers */}
-            {MOCK_MEMBERS.map((m) => (
-              <Marker
-                key={m.id}
-                coordinate={{ latitude: m.lat, longitude: m.lng }}
-                title={`${t('fe2.recommendation.map_member_label')}: ${m.name}`}
-              >
-                <View style={styles.memberPin}>
-                  <Text style={styles.memberPinText}>{m.name[0]}</Text>
-                </View>
-              </Marker>
-            ))}
+            {MOCK_MEMBERS.map((m) => {
+              const displayName = m.name === 'Bạn' ? t('fe2.common.you') : m.name;
+              return (
+                <Marker
+                  key={m.id}
+                  coordinate={{ latitude: m.lat, longitude: m.lng }}
+                  title={`${t('fe2.recommendation.map_member_label')}: ${displayName}`}
+                >
+                  <View style={styles.memberPin}>
+                    <Text style={styles.memberPinText}>{displayName[0]}</Text>
+                  </View>
+                </Marker>
+              );
+            })}
 
             {/* Recommended Place Markers */}
             {processedPlaces.map((place) => {
@@ -394,7 +414,7 @@ export default function RecommendationScreen() {
                 )}
                 <View style={styles.metaRow}>
                   <Clock size={13} color={colors.primary} />
-                  <Text style={styles.metaText}>Avg {selectedMapPlace.avgEta} {t('fe2.common.min')}</Text>
+                  <Text style={styles.metaText}>{t('fe2.recommendation.avg_prefix')} {selectedMapPlace.avgEta} {t('fe2.common.min')}</Text>
                 </View>
               </View>
 
