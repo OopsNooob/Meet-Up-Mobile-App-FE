@@ -148,7 +148,7 @@ pnpm expo run:android
 
 ## 🔗 Related Documentation
 
-- [Backend Documentation (`Meet-Up-Mobile-App-BE`)](../Meet-Up-Mobile-App-BE/README.md)
+- [Backend Documentation (`Meet-Up-Mobile-App-BE`)](https://github.com/Bakaguya-sama/Meet-Up-Mobile-App-BE/blob/main/docs/README.md)
 - [Project Requirements & Architecture Specification (`docs/02_nghiep_vu_va_dac_ta.md`)](docs/02_nghiep_vu_va_dac_ta.md)
 - [Frontend Assignment Matrix (`docs/MeetUp_Frontend_2_Assignment_for_Agent.md`)](docs/MeetUp_Frontend_2_Assignment_for_Agent.md)
 
