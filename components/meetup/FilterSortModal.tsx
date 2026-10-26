@@ -208,7 +208,7 @@ export function FilterSortModal({
 
             {/* Filter Section */}
             <View>
-              <Text style={styles.sectionTitle}>{t('fe2.recommendation.filter_sort_btn')}</Text>
+              <Text style={styles.sectionTitle}>{t('fe2.recommendation.filter_section')}</Text>
               <View style={styles.filterRow}>
                 <Text style={styles.filterLabel}>{t('fe2.recommendation.filter_open_now')}</Text>
                 <Switch

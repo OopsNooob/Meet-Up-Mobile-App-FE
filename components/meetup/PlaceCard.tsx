@@ -109,7 +109,7 @@ export function PlaceCard({ place, onPress, onWhyPress }: Props) {
       <View style={styles.memberEta}>
         {place.etaPerMember.map((m) => (
           <View key={m.userId} style={styles.memberRow}>
-            <Text style={[styles.memberName, { color: colors.subtext }]}>{m.name}</Text>
+            <Text style={[styles.memberName, { color: colors.subtext }]}>{m.name === 'Bạn' ? t('fe2.common.you') : m.name}</Text>
             <Text style={[styles.memberEtaText, { color: colors.primary }]}>{m.eta} {t('fe2.common.min')}</Text>
           </View>
         ))}

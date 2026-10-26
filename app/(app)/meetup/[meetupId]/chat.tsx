@@ -1,29 +1,35 @@
 import { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { ChatBubble, ChatMessage, MessageStatus } from '@/components/meetup/ChatBubble';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Sparkles } from 'lucide-react-native';
+import { routes } from '@/constants/routes';
 
 const CURRENT_USER_ID = 'u1';
-const CURRENT_USER_NAME = 'Bạn';
 
-const INITIAL_MESSAGES: ChatMessage[] = [
-  { id: 'm1', userId: 'u2', userName: 'Việt', text: 'Tụi mình gặp ở quán nào vậy?', timestamp: new Date(Date.now() - 5 * 60 * 1000), status: 'sent', isOwn: false },
-  { id: 'm2', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Tao thấy The Coffee House ổn nè 👍', timestamp: new Date(Date.now() - 4 * 60 * 1000), status: 'sent', isOwn: true },
-  { id: 'm3', userId: 'u3', userName: 'Minh', text: 'Ok mình ở gần đó, ETA tao chỉ 8 phút thôi', timestamp: new Date(Date.now() - 3 * 60 * 1000), status: 'sent', isOwn: false },
-  { id: 'm4', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Đang gửi...', timestamp: new Date(Date.now() - 60 * 1000), status: 'pending', isOwn: true },
-  { id: 'm5', userId: 'u1', userName: CURRENT_USER_NAME, text: 'Tin nhắn lỗi này (thử lại)', timestamp: new Date(Date.now() - 30 * 1000), status: 'error', isOwn: true },
-];
+function getInitialMessages(t: (key: string) => string): ChatMessage[] {
+  const currentUserName = t('fe2.common.you');
+  return [
+    { id: 'm1', userId: 'u2', userName: 'Việt', text: t('fe2.chat.mock_msg_1'), timestamp: new Date(Date.now() - 5 * 60 * 1000), status: 'sent', isOwn: false },
+    { id: 'm2', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_2'), timestamp: new Date(Date.now() - 4 * 60 * 1000), status: 'sent', isOwn: true },
+    { id: 'm3', userId: 'u3', userName: 'Minh', text: t('fe2.chat.mock_msg_3'), timestamp: new Date(Date.now() - 3 * 60 * 1000), status: 'sent', isOwn: false },
+    { id: 'm4', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_pending'), timestamp: new Date(Date.now() - 60 * 1000), status: 'pending', isOwn: true },
+    { id: 'm5', userId: 'u1', userName: currentUserName, text: t('fe2.chat.mock_msg_error'), timestamp: new Date(Date.now() - 30 * 1000), status: 'error', isOwn: true },
+  ];
+}
 
 export default function ChatScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const currentUserName = t('fe2.common.you');
+  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages(t));
   const [inputText, setInputText] = useState('');
   const [isConnected] = useState(true);
   const flatListRef = useRef<FlatList>(null);
@@ -32,13 +38,13 @@ export default function ChatScreen() {
   const handleSend = useSinglePress(() => {
     const text = inputText.trim();
     if (!text) return;
-    const newMsg: ChatMessage = { id: `m_${Date.now()}`, userId: CURRENT_USER_ID, userName: CURRENT_USER_NAME, text, timestamp: new Date(), status: 'pending', isOwn: true };
+    const newMsg: ChatMessage = { id: `m_${Date.now()}`, userId: CURRENT_USER_ID, userName: currentUserName, text, timestamp: new Date(), status: 'pending', isOwn: true };
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
     setTimeout(() => {
       setMessages((prev) => prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m)));
     }, 800);
-    emit('chat:send', { meetupId: 'meetup-1', text });
+    emit('chat:send', { meetupId, text });
   }, 600);
 
   const handleShareLocation = useSinglePress(() => {
@@ -46,7 +52,7 @@ export default function ChatScreen() {
     const newMsg: ChatMessage = {
       id: `m_${Date.now()}`,
       userId: CURRENT_USER_ID,
-      userName: CURRENT_USER_NAME,
+      userName: currentUserName,
       text: locText,
       timestamp: new Date(),
       status: 'pending',
@@ -58,7 +64,7 @@ export default function ChatScreen() {
         prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
       );
     }, 600);
-    emit('chat:send', { meetupId: 'meetup-1', text: locText });
+    emit('chat:send', { meetupId, text: locText });
   }, 800);
 
   const handleRetry = useSinglePress((messageId: string) => {
@@ -70,6 +76,19 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push(routes.meetupRecommendations(meetupId))}
+              style={{ padding: 6, marginRight: 4 }}
+              accessibilityLabel={t('fe2.recommendation.screen_title')}
+            >
+              <Sparkles size={20} color={colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       {!isConnected && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineText}>{t('fe2.chat.offline_banner')}</Text>

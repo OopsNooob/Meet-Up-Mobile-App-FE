@@ -54,4 +54,9 @@ export const routes = {
 
 export const deepLinks = {
   meetup: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}`),
+  recommendations: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/recommendations`),
+  chat: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/chat`),
+  place: (placeId: string) => Linking.createURL(`/place/${placeId}`),
+  locationSettings: () => Linking.createURL('/settings/location'),
+  nearbySettings: () => Linking.createURL('/settings/nearby'),
 };
