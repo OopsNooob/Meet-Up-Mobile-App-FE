@@ -2,8 +2,6 @@
 
 > Real-time location-aware mobile client for spontaneous and scheduled group meetups, featuring fair ETA recommendation, AI venue explanations, in-app group chat, and privacy-first location sharing.
 
-Part of the **SE405 — Pervasive and Mobile Computing** project, connecting to the [MeetUp Backend (`Meet-Up-Mobile-App-BE`)](../Meet-Up-Mobile-App-BE/README.md).
-
 ---
 
 ## 🛠 Tech Stack
