@@ -134,7 +134,7 @@ pnpm expo run:android
 pnpm expo start
 
 # Type check TypeScript definitions across the project
-npx tsc --noEmit
+pnpm typecheck
 
 # Run ESLint validation
 pnpm lint
