@@ -14,6 +14,8 @@ export const routes = {
   tabFriends: '/friends',
   tabProfile: '/profile',
 
+  profileEdit: '/profile/edit',
+
   meetupCreate: '/meetup/create',
   meetupInvitations: '/meetup/invitations',
   meetupDetail: (meetupId: string) => ({ pathname: '/meetup/[meetupId]', params: { meetupId } }),

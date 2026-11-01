@@ -26,16 +26,18 @@ export function validateLogin(input: { email: string; password: string }): Field
   };
 }
 
+/** Dùng chung cho Đăng ký (FE-01) và Sửa hồ sơ (FE-02) */
+export function validateDisplayName(displayName: string): string | undefined {
+  const name = displayName.trim();
+  if (!name) return 'validation.display_name_required';
+  if (name.length > DISPLAY_NAME_MAX_LENGTH) return 'validation.display_name_too_long';
+}
+
 type RegisterField = 'displayName' | 'email' | 'password' | 'confirmPassword';
 
 export function validateRegister(input: Record<RegisterField, string>): FieldErrors<RegisterField> {
-  const name = input.displayName.trim();
   return {
-    displayName: !name
-      ? 'validation.display_name_required'
-      : name.length > DISPLAY_NAME_MAX_LENGTH
-        ? 'validation.display_name_too_long'
-        : undefined,
+    displayName: validateDisplayName(input.displayName),
     email: validateEmail(input.email),
     password: !input.password
       ? 'validation.password_required'

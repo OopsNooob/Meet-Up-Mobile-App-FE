@@ -11,6 +11,8 @@ export * from './Screen';
 export * from './Skeleton';
 export * from './StateViews';
 export * from './StatusLabel';
+export * from './TagChip';
+export * from './TagLevelPicker';
 export * from './TextField';
 export * from './Toast';
 export * from './InAppNotificationBanner';

@@ -21,6 +21,8 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+      <Stack.Screen name="profile/edit" options={{ title: t('screens.profile_edit') }} />
+
       <Stack.Screen name="meetup/create" options={{ title: t('screens.meetup_create') }} />
       <Stack.Screen name="meetup/invitations" options={{ title: t('screens.meetup_invitations') }} />
       <Stack.Screen name="meetup/[meetupId]/index" options={{ title: t('screens.meetup_detail') }} />

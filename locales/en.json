@@ -367,16 +367,64 @@
     "favorites": "Favorite Places",
     "admin_users": "Accounts",
     "admin_reports": "Reports",
-    "dev_components": "Shared Components"
+    "dev_components": "Shared Components",
+    "profile_edit": "Edit profile"
   },
   "profile": {
     "dark_mode": "Dark mode",
     "settings": "Settings",
     "admin": "Admin",
-    "dev_menu": "Dev menu (dev builds only)"
+    "dev_menu": "Dev menu (dev builds only)",
+    "edit": "Edit profile",
+    "save": "Save changes",
+    "save_success": "Profile saved",
+    "display_name": "Display name",
+    "display_name_hint": "{{count}}/{{max}} characters",
+    "email_readonly": "Sign-in email, cannot be changed",
+    "change_avatar": "Change profile photo",
+    "take_photo": "Take photo",
+    "choose_from_library": "Choose from library",
+    "avatar_uploading": "Uploading photo...",
+    "avatar_upload_failed": "Photo upload failed. Tap \"Save changes\" to try again.",
+    "avatar_pending": "The new photo will be uploaded when you save",
+    "pick_failed": "Could not open the photo. Please try another one.",
+    "photos_denied_title": "No access to photos",
+    "photos_denied_message": "MeetUp needs access to your photo library so you can choose a profile photo. You can allow it in your device Settings.",
+    "camera_denied_title": "No access to camera",
+    "camera_denied_message": "MeetUp needs camera access so you can take a profile photo. You can allow it in your device Settings.",
+    "open_settings": "Open Settings",
+    "open_settings_failed": "Could not open Settings. Please open your device Settings and allow access for MeetUp.",
+    "later": "Not now",
+    "discard_title": "Discard changes?",
+    "discard_message": "You have unsaved changes. They will be lost if you leave.",
+    "discard_confirm": "Discard",
+    "keep_editing": "Keep editing",
+    "preferences_title": "Default preferences",
+    "preferences_prefill_hint": "These preferences pre-fill the form when you join a new meetup. Changing them does not affect existing meetups.",
+    "preferences_empty_title": "No preferences yet",
+    "preferences_empty_description": "Pick activities you like or want to avoid to join meetups faster next time.",
+    "preferences_choose": "Choose preferences"
   },
   "map_web": {
     "title": "Map is not available on web",
     "description": "The friend map only runs in the Android app. Open the app with Expo Go or a device build."
+  },
+  "preference": {
+    "level": {
+      "high": "Preferred",
+      "normal": "Okay",
+      "avoid": "Avoid",
+      "none": "Not selected"
+    },
+    "chip_hint": "Tap to change preference level",
+    "legend_hint": "Tap a tag to change its level"
+  },
+  "tags": {
+    "food": "Food",
+    "coffee": "Coffee",
+    "movie": "Movies",
+    "mall": "Shopping mall",
+    "park": "Park",
+    "entertainment": "Entertainment"
   }
 }
