@@ -30,7 +30,15 @@
           "imageWidth": 200
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MeetUp cần truy cập thư viện ảnh để bạn chọn ảnh đại diện.",
+          "cameraPermission": "MeetUp cần dùng camera để bạn chụp ảnh đại diện.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

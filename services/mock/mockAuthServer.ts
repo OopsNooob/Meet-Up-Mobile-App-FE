@@ -1,9 +1,11 @@
 import { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import type { AuthResponseDto, TokensDto, UserDto } from '@/services/authService';
+import { handleProfileRequest, isMockProfilePath, loadMockProfiles } from './mockProfileServer';
 
 /**
  * Mock backend BE-01 chạy bằng axios adapter → interceptor refresh/retry được test y như với API thật.
- * Chỉ bật khi USE_MOCK_API. Request không thuộc /auth/* được chuyển tiếp sang adapter thật.
+ * Chỉ bật khi USE_MOCK_API. Request không thuộc /auth/* (hoặc profile BE-02, xem mockProfileServer.ts)
+ * được chuyển tiếp sang adapter thật.
  *
  * Dữ liệu nằm trong bộ nhớ: tài khoản đăng ký mới mất khi reload JS (tài khoản có sẵn thì không).
  * Token mock không phải JWT thật và không chứa thông tin nhạy cảm.
@@ -178,9 +180,12 @@ function handle(method: string, path: string, body: Record<string, string>, conf
 export function createMockAdapter(fallback: AxiosAdapter): AxiosAdapter {
   return async (config) => {
     const path = (config.url ?? '').replace(/^https?:\/\/[^/]+/, '').replace(/^\/api\/v1/, '');
-    if (!path.startsWith('/auth/') || path.startsWith('/auth/privacy')) return fallback(config);
+    const isProfile = isMockProfilePath(path);
+    if (!isProfile && (!path.startsWith('/auth/') || path.startsWith('/auth/privacy'))) return fallback(config);
 
     await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
+    // Tên/avatar đã sửa ở FE-02 được lưu lại → /auth/me sau khi mở lại app vẫn trả dữ liệu mới
+    await loadMockProfiles([...accounts.values()].map((a) => a.user));
     const body = typeof config.data === 'string' && config.data ? JSON.parse(config.data) : {};
 
     const toResponse = (status: number, data: unknown): AxiosResponse => ({
@@ -193,7 +198,10 @@ export function createMockAdapter(fallback: AxiosAdapter): AxiosAdapter {
     });
 
     try {
-      const result = handle((config.method ?? 'get').toLowerCase(), path, body, config);
+      const method = (config.method ?? 'get').toLowerCase();
+      const result = isProfile
+        ? await handleProfileRequest(method, path, body, authenticate(config).user, config, fail)
+        : handle(method, path, body, config);
       if (!result) throw fail(404, 'NOT_FOUND');
       return toResponse(result.status, result.data);
     } catch (err) {

@@ -367,16 +367,64 @@
     "favorites": "Địa điểm yêu thích",
     "admin_users": "Quản lý tài khoản",
     "admin_reports": "Báo cáo vi phạm",
-    "dev_components": "Component dùng chung"
+    "dev_components": "Component dùng chung",
+    "profile_edit": "Chỉnh sửa hồ sơ"
   },
   "profile": {
     "dark_mode": "Chế độ tối",
     "settings": "Cài đặt",
     "admin": "Quản trị",
-    "dev_menu": "Dev menu (chỉ bản dev)"
+    "dev_menu": "Dev menu (chỉ bản dev)",
+    "edit": "Chỉnh sửa hồ sơ",
+    "save": "Lưu thay đổi",
+    "save_success": "Đã lưu hồ sơ",
+    "display_name": "Tên hiển thị",
+    "display_name_hint": "{{count}}/{{max}} ký tự",
+    "email_readonly": "Email đăng nhập, không thể thay đổi",
+    "change_avatar": "Đổi ảnh đại diện",
+    "take_photo": "Chụp ảnh",
+    "choose_from_library": "Chọn từ thư viện",
+    "avatar_uploading": "Đang tải ảnh lên...",
+    "avatar_upload_failed": "Tải ảnh lên thất bại. Bấm \"Lưu thay đổi\" để thử lại.",
+    "avatar_pending": "Ảnh mới sẽ được tải lên khi bạn lưu",
+    "pick_failed": "Không mở được ảnh. Vui lòng thử ảnh khác.",
+    "photos_denied_title": "Chưa có quyền truy cập ảnh",
+    "photos_denied_message": "MeetUp cần quyền truy cập thư viện ảnh để bạn chọn ảnh đại diện. Bạn có thể cấp quyền trong Cài đặt của máy.",
+    "camera_denied_title": "Chưa có quyền dùng camera",
+    "camera_denied_message": "MeetUp cần quyền camera để bạn chụp ảnh đại diện. Bạn có thể cấp quyền trong Cài đặt của máy.",
+    "open_settings": "Mở Cài đặt",
+    "open_settings_failed": "Không mở được Cài đặt. Hãy mở Cài đặt của máy và cấp quyền cho MeetUp.",
+    "later": "Để sau",
+    "discard_title": "Bỏ các thay đổi?",
+    "discard_message": "Bạn có thay đổi chưa lưu. Nếu rời đi, các thay đổi này sẽ mất.",
+    "discard_confirm": "Bỏ thay đổi",
+    "keep_editing": "Tiếp tục sửa",
+    "preferences_title": "Sở thích mặc định",
+    "preferences_prefill_hint": "Sở thích này dùng để điền sẵn khi bạn tham gia meetup mới. Thay đổi ở đây không ảnh hưởng các meetup đã có.",
+    "preferences_empty_title": "Chưa chọn sở thích nào",
+    "preferences_empty_description": "Chọn vài hoạt động bạn thích hoặc muốn tránh để lần sau tham gia meetup nhanh hơn.",
+    "preferences_choose": "Chọn sở thích"
   },
   "map_web": {
     "title": "Bản đồ chưa hỗ trợ trên web",
     "description": "Bản đồ bạn bè chỉ chạy trên ứng dụng Android. Hãy mở app bằng Expo Go hoặc bản build trên điện thoại."
+  },
+  "preference": {
+    "level": {
+      "high": "Ưu tiên",
+      "normal": "Bình thường",
+      "avoid": "Tránh",
+      "none": "Chưa chọn"
+    },
+    "chip_hint": "Bấm để đổi mức sở thích",
+    "legend_hint": "Bấm tag để đổi mức"
+  },
+  "tags": {
+    "food": "Ăn uống",
+    "coffee": "Cà phê",
+    "movie": "Xem phim",
+    "mall": "Trung tâm thương mại",
+    "park": "Công viên",
+    "entertainment": "Giải trí"
   }
 }

@@ -5,8 +5,16 @@ import { useTheme } from '@/hooks/useTheme';
 import { API_BASE_URL, getRefreshCount, toApiError, USE_MOCK_API } from '@/services/apiClient';
 import { authService } from '@/services/authService';
 import { mockAuthDebug } from '@/services/mock/mockAuthServer';
+import { mockProfileDebug, type MockProfileFailure } from '@/services/mock/mockProfileServer';
 import { useAuth } from '@/store/useAuthStore';
 import { fontSize, spacing } from '@/theme';
+
+const PROFILE_FAILURE_CYCLE: MockProfileFailure[] = ['none', 'offline', 'server'];
+const PROFILE_FAILURE_LABELS: Record<MockProfileFailure, string> = {
+  none: 'bình thường',
+  offline: 'giả lập mất mạng',
+  server: 'giả lập lỗi 500',
+};
 
 // Màn dev (không i18n): kiểm tra tay vòng đời phiên FE-01. Không hiển thị giá trị token.
 export default function DevAuthScreen() {
@@ -14,6 +22,7 @@ export default function DevAuthScreen() {
   const toast = useToast();
   const { user } = useAuth();
   const [log, setLog] = useState<string[]>([]);
+  const [profileFailure, setProfileFailure] = useState(mockProfileDebug.getFailure);
 
   const append = (line: string) => setLog((prev) => [`${new Date().toLocaleTimeString()}  ${line}`, ...prev].slice(0, 20));
 
@@ -67,6 +76,19 @@ export default function DevAuthScreen() {
         onPress={mockAction('Đã khóa → gọi /me để bị đăng xuất với thông báo khóa', () =>
           mockAuthDebug.lockAccount(user?.email ?? ''),
         )}
+      />
+
+      <Button
+        label={`④ API hồ sơ (FE-02): ${PROFILE_FAILURE_LABELS[profileFailure]}`}
+        variant="secondary"
+        fullWidth
+        disabled={!USE_MOCK_API}
+        onPress={() => {
+          const next = PROFILE_FAILURE_CYCLE[(PROFILE_FAILURE_CYCLE.indexOf(profileFailure) + 1) % PROFILE_FAILURE_CYCLE.length];
+          mockProfileDebug.setFailure(next);
+          setProfileFailure(next);
+          append(`API hồ sơ → ${PROFILE_FAILURE_LABELS[next]}`);
+        }}
       />
 
       {log.map((line) => (

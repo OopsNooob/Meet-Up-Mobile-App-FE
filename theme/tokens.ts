@@ -50,4 +50,5 @@ export const avatarSize = {
   sm: 32,
   md: 44,
   lg: 72,
+  xl: 112,
 } as const;
