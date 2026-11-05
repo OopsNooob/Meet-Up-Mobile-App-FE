@@ -1,26 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, RefreshControl } from 'react-native';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Linking,
+  Alert,
+  RefreshControl,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, CheckCircle2, Navigation } from 'lucide-react-native';
+import {
+  Sparkles,
+  CheckCircle2,
+  Navigation,
+  Heart,
+  MapPinCheck,
+  Lock,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
-import { PlaceDetailSkeleton } from '@/components/common/Skeleton';
+import { PlaceDetailSkeleton, ReviewItemSkeleton } from '@/components/common/Skeleton';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { routes } from '@/constants/routes';
-
-const MOCK_DETAIL = {
-  placeId: 'p1', name: 'The Coffee House - Nguyễn Huệ',
-  address: '86 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-  rating: 4.5, totalReviews: 1420,
-  isOpenNow: true as boolean | null,
-  openingHours: ['Thứ 2–6: 7:00 – 22:00', 'Thứ 7–CN: 7:30 – 22:30'],
-  avgEta: 12, maxEta: 18,
-  etaPerMember: [
-    { userId: 'u1', name: 'Bạn', eta: 10 },
-    { userId: 'u2', name: 'Việt', eta: 18 },
-    { userId: 'u3', name: 'Minh', eta: 8 },
-  ],
-};
+import {
+  selectComputedRecommendations,
+  useRecommendationStore,
+} from '@/store/useRecommendationStore';
 
 export default function PlaceDetailScreen() {
   const { t, i18n } = useTranslation();
@@ -28,52 +37,184 @@ export default function PlaceDetailScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
 
-  const openingHours = useMemo(() => {
-    return i18n.language === 'vi'
-      ? ['Thứ 2–6: 7:00 – 22:00', 'Thứ 7–CN: 7:30 – 22:30']
-      : ['Mon–Fri: 7:00 AM – 10:00 PM', 'Sat–Sun: 7:30 AM – 10:30 PM'];
-  }, [i18n.language]);
+  const storeState = useRecommendationStore();
+  const {
+    runId,
+    contextStatus,
+    weatherPolicy,
+    effectiveRoutingPreference,
+    votedCandidateKey,
+    finalizedCandidateKey,
+    favoriteCandidateKeys,
+    toggleVotePlace,
+    finalizePlace,
+    toggleFavoritePlace,
+    recordFeedbackEvent,
+  } = storeState;
+
+  const { places } = useMemo(
+    () => selectComputedRecommendations(storeState),
+    [storeState]
+  );
+
+  const place = useMemo(
+    () => places.find((p) => p.placeId === placeId) ?? places[0],
+    [places, placeId]
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasVoted, setHasVoted] = useState(false);
-  const [place, setPlace] = useState({ ...MOCK_DETAIL, placeId: placeId || MOCK_DETAIL.placeId });
+  const [finalizeDialogVisible, setFinalizeDialogVisible] = useState(false);
 
-  const handleVote = useSinglePress(() => {
-    setHasVoted((prev) => !prev);
-  }, 400);
+  // Lazy loading state for Community Reviews
+  const [visibleReviewsCount, setVisibleReviewsCount] = useState(2);
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+
+  const allReviews = useMemo(
+    () => [
+      {
+        id: 'r1',
+        author: t('fe2.place_detail.review_1_author'),
+        time: t('fe2.place_detail.review_1_time'),
+        text: t('fe2.place_detail.review_1_text'),
+        stars: '⭐⭐⭐⭐⭐',
+      },
+      {
+        id: 'r2',
+        author: t('fe2.place_detail.review_2_author'),
+        time: t('fe2.place_detail.review_2_time'),
+        text: t('fe2.place_detail.review_2_text'),
+        stars: '⭐⭐⭐⭐⭐',
+      },
+      {
+        id: 'r3',
+        author: t('fe2.place_detail.review_3_author'),
+        time: t('fe2.place_detail.review_3_time'),
+        text: t('fe2.place_detail.review_3_text'),
+        stars: '⭐⭐⭐⭐',
+      },
+      {
+        id: 'r4',
+        author: t('fe2.place_detail.review_4_author'),
+        time: t('fe2.place_detail.review_4_time'),
+        text: t('fe2.place_detail.review_4_text'),
+        stars: '⭐⭐⭐⭐⭐',
+      },
+      {
+        id: 'r5',
+        author: t('fe2.place_detail.review_5_author'),
+        time: t('fe2.place_detail.review_5_time'),
+        text: t('fe2.place_detail.review_5_text'),
+        stars: '⭐⭐⭐⭐⭐',
+      },
+    ],
+    [t]
+  );
+
+  const hasMoreReviews = visibleReviewsCount < allReviews.length;
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
+    const timer = setTimeout(() => setIsLoading(false), 550);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleLoadMoreReviews = useCallback(() => {
+    if (isLoading || isRefreshing || isLoadingMoreReviews || !hasMoreReviews) return;
+    setIsLoadingMoreReviews(true);
+    setTimeout(() => {
+      setVisibleReviewsCount((prev) => Math.min(prev + 2, allReviews.length));
+      setIsLoadingMoreReviews(false);
+    }, 550);
+  }, [allReviews.length, hasMoreReviews, isLoading, isLoadingMoreReviews, isRefreshing]);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const isCloseToBottom =
+        layoutMeasurement.height + contentOffset.y >= contentSize.height - 60;
+      if (isCloseToBottom && hasMoreReviews && !isLoadingMoreReviews) {
+        handleLoadMoreReviews();
+      }
+    },
+    [handleLoadMoreReviews, hasMoreReviews, isLoadingMoreReviews]
+  );
 
   const handleRefresh = useSinglePress(() => {
     setIsRefreshing(true);
     setTimeout(() => {
-      setPlace((prev) => ({
-        ...prev,
-        avgEta: Math.max(5, prev.avgEta + (Math.random() > 0.5 ? 1 : -1)),
-        etaPerMember: prev.etaPerMember.map((m) => ({
-          ...m,
-          eta: Math.max(3, m.eta + (Math.random() > 0.5 ? 1 : -1)),
-        })),
-      }));
+      setVisibleReviewsCount(2);
       setIsRefreshing(false);
-    }, 1000);
-  }, 1000);
+    }, 650);
+  }, 800);
+
+  const isStale = contextStatus === 'STALE_CONTEXT';
+  const isVoted = votedCandidateKey === place.canonicalCandidateKey;
+  const isFinalized = finalizedCandidateKey === place.canonicalCandidateKey;
+  const isAnyFinalized = finalizedCandidateKey !== null;
+  const isFavorite = favoriteCandidateKeys.includes(place.canonicalCandidateKey);
+
+  const handleVote = useSinglePress(() => {
+    if (isStale || isAnyFinalized) return;
+    toggleVotePlace(place.canonicalCandidateKey, place.rank);
+  }, 350);
+
+  const handleConfirmFinalize = () => {
+    setFinalizeDialogVisible(false);
+    finalizePlace(place.canonicalCandidateKey, place.rank);
+  };
+
+  const handleFavorite = useSinglePress(() => {
+    toggleFavoritePlace(place.canonicalCandidateKey, place.rank);
+  }, 350);
 
   const handleOpenNavigation = useSinglePress(() => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`;
+    recordFeedbackEvent('NavigationOpened', place.canonicalCandidateKey, place.rank);
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      place.address
+    )}`;
     Linking.openURL(url).catch(() => {
       Alert.alert(t('fe2.common.error'), t('fe2.common.maps_open_error'));
     });
-  }, 1000);
+  }, 800);
+
+  const openingHours =
+    i18n.language === 'vi' ? place.opening.hoursVi : place.opening.hoursEn;
+  const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
+  const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
+  const closingMins =
+    place.opening.secondsUntilClose !== null
+      ? Math.round(place.opening.secondsUntilClose / 60)
+      : null;
+
+  const utilityRows = [
+    {
+      label: t('fe2.place_detail.utility_travel'),
+      value: place.viewerFeature.travelUtility,
+      color: colors.primary,
+    },
+    {
+      label: t('fe2.place_detail.utility_preference'),
+      value: place.viewerFeature.preferenceUtility,
+      color: colors.purple,
+    },
+    {
+      label: t('fe2.place_detail.utility_quality'),
+      value: place.viewerFeature.placeQualityUtility,
+      color: colors.warning,
+    },
+    {
+      label: t('fe2.place_detail.utility_total'),
+      value: place.viewerFeature.memberUtility,
+      color: colors.success,
+    },
+  ];
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      onScroll={handleScroll}
+      scrollEventThrottle={160}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -88,110 +229,551 @@ export default function PlaceDetailScreen() {
         <PlaceDetailSkeleton />
       ) : (
         <>
-          <Text style={styles.name}>{place.name}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.rankBadge}>#{place.rank}</Text>
+            <Text style={styles.name}>{place.name}</Text>
+          </View>
           <Text style={styles.address}>{place.address}</Text>
 
-          {/* Opening hours */}
+          {/* Scheduled Opening Hours & Closing Soon Alert */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{t('fe2.place_detail.opening_hours_section')}</Text>
-        {place.isOpenNow === true && (
-          <View style={[styles.badge, { backgroundColor: colors.successLight }]}>
-            <Text style={[styles.badgeText, { color: colors.success }]}>{t('fe2.common.open_now')}</Text>
-          </View>
-        )}
-        {place.isOpenNow === false && (
-          <View style={[styles.badge, { backgroundColor: colors.dangerLight }]}>
-            <Text style={[styles.badgeText, { color: colors.danger }]}>{t('fe2.common.closed')}</Text>
-          </View>
-        )}
-        {place.isOpenNow === null && (
-          <>
-            <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-              <Text style={[styles.badgeText, { color: colors.placeholder }]}>⏱ {t('fe2.common.no_opening_hours')}</Text>
+            <Text style={styles.sectionTitle}>
+              {t('fe2.place_detail.opening_hours_section')}
+            </Text>
+
+            <Text style={styles.subMeta}>
+              {t('fe2.place_detail.scheduled_check_label')}{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>
+                {isStale
+                  ? t('fe2.recommendation.scheduled_time_stale_value')
+                  : t('fe2.recommendation.scheduled_time_value')}
+              </Text>
+            </Text>
+
+            <View style={styles.badgeRow}>
+              {place.opening.statusAtScheduled === 'OPEN' && (
+                <View style={[styles.badge, { backgroundColor: colors.successLight }]}>
+                  <Text style={[styles.badgeText, { color: colors.success }]}>
+                    {t('fe2.recommendation.open_at_scheduled', { time: '19:00' })}
+                  </Text>
+                </View>
+              )}
+              {place.opening.statusAtScheduled === 'CLOSED' && (
+                <View style={[styles.badge, { backgroundColor: colors.dangerLight }]}>
+                  <Text style={[styles.badgeText, { color: colors.danger }]}>
+                    {t('fe2.recommendation.closed_at_scheduled', { time: '19:00' })}
+                  </Text>
+                </View>
+              )}
+              {place.opening.statusAtScheduled === 'UNKNOWN' && (
+                <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
+                  <Text style={[styles.badgeText, { color: colors.placeholder }]}>
+                    {t('fe2.recommendation.unknown_at_scheduled')}
+                  </Text>
+                </View>
+              )}
+              {place.opening.fallbackToRegularHours && (
+                <View style={[styles.badge, { backgroundColor: colors.infoLight }]}>
+                  <Text style={[styles.badgeText, { color: colors.info }]}>
+                    {t('fe2.recommendation.regular_hours_badge')}
+                  </Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.noDataHint}>{t('fe2.place_detail.no_data_hint')}</Text>
-          </>
-        )}
-        {place.isOpenNow !== null && openingHours.map((h, i) => (
-          <Text key={i} style={styles.hoursText}>{h}</Text>
-        ))}
-      </View>
 
-      {/* Rating */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('fe2.place_detail.rating_section')}</Text>
-        <View style={styles.ratingRow}>
-          <Text style={styles.ratingNumber}>{place.rating}</Text>
-          <Text style={{ fontSize: 14 }}>⭐⭐⭐⭐⭐</Text>
-          <Text style={styles.reviewCount}>{t('fe2.place_detail.reviews_count', { count: place.totalReviews.toLocaleString() })}</Text>
-        </View>
-      </View>
+            {place.opening.closingStatus === 'CLOSING_SOON' &&
+              place.opening.nextClosingAt && (
+                <View
+                  style={[
+                    styles.alertBox,
+                    { backgroundColor: colors.warningLight, borderColor: colors.warning },
+                  ]}
+                >
+                  <Text style={[styles.alertTitle, { color: colors.warning }]}>
+                    {t('fe2.place_detail.closing_soon_alert_title')}
+                  </Text>
+                  <Text style={[styles.alertBody, { color: colors.text }]}>
+                    {t('fe2.place_detail.closing_soon_alert_body', {
+                      closeTime: place.opening.nextClosingAt,
+                      mins: closingMins ?? 45,
+                      scheduledTime: '19:00',
+                    })}
+                  </Text>
+                </View>
+              )}
 
-      {/* ETA */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('fe2.place_detail.eta_section')}</Text>
-        <View style={styles.etaSummary}>
-          <View style={styles.etaBox}>
-            <Text style={styles.etaLabel}>{t('fe2.common.avg_eta')}</Text>
-            <Text style={styles.etaValue}>{place.avgEta} {t('fe2.common.min')}</Text>
+            {place.opening.statusAtScheduled === 'UNKNOWN' ? (
+              <Text style={styles.noDataHint}>{t('fe2.place_detail.no_data_hint')}</Text>
+            ) : (
+              openingHours.map((h, i) => (
+                <Text key={i} style={styles.hoursText}>
+                  • {h}
+                </Text>
+              ))
+            )}
+
+            {place.opening.fallbackToRegularHours && (
+              <Text style={[styles.noDataHint, { color: colors.info }]}>
+                {t('fe2.place_detail.regular_hours_hint')}
+              </Text>
+            )}
           </View>
-          <View style={[styles.etaBox, { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary }]}>
-            <Text style={styles.etaLabel}>{t('fe2.common.max_eta')}</Text>
-            <Text style={styles.etaValue}>{place.maxEta} {t('fe2.common.min')}</Text>
-          </View>
-        </View>
-        {place.etaPerMember.map((m) => (
-          <View key={m.userId} style={styles.memberRow}>
-            <Text style={styles.memberName}>{m.name === 'Bạn' ? t('fe2.common.you') : m.name}</Text>
-            <Text style={[styles.memberEta, { color: colors.primary }]}>{m.eta} {t('fe2.common.min')}</Text>
-          </View>
-        ))}
-      </View>
 
-      {/* Action buttons */}
-      <View style={styles.actionColumn}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: colors.purpleLight, borderColor: colors.purple }]}
-          onPress={() => router.push(routes.placeExplanation(place.placeId, place.name))}
-        >
-          <Sparkles size={18} color={colors.purple} />
-          <Text style={[styles.actionBtnText, { color: colors.purple }]}>
-            {t('fe2.recommendation.why_button')}
-          </Text>
-        </TouchableOpacity>
+          {/* Weather & Outdoor Exposure Card */}
+          {weatherPolicy !== 'OFF' && (
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>
+                {t('fe2.place_detail.weather_section')}
+              </Text>
+              <View style={styles.badgeRow}>
+                <View
+                  style={[
+                    styles.badge,
+                    {
+                      backgroundColor:
+                        place.weather.outdoorExposure === 'OUTDOOR'
+                          ? colors.infoLight
+                          : colors.surfaceAlt,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      {
+                        color:
+                          place.weather.outdoorExposure === 'OUTDOOR'
+                            ? colors.info
+                            : colors.subtext,
+                      },
+                    ]}
+                  >
+                    {place.weather.outdoorExposure === 'OUTDOOR'
+                      ? t('fe2.recommendation.outdoor_badge')
+                      : t('fe2.recommendation.indoor_badge')}
+                  </Text>
+                </View>
 
-        <TouchableOpacity
-          style={[
-            styles.actionBtn,
-            hasVoted
-              ? { backgroundColor: colors.successLight, borderColor: colors.success }
-              : { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-          ]}
-          onPress={handleVote}
-        >
-          <CheckCircle2 size={18} color={hasVoted ? colors.success : colors.subtext} />
-          <Text
+                {place.weather.dataStatus === 'AVAILABLE' &&
+                  place.weather.temperatureCelsius !== null && (
+                    <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
+                      <Text style={[styles.badgeText, { color: colors.text }]}>
+                        {t('fe2.recommendation.weather_ok_badge', {
+                          temp: place.weather.temperatureCelsius,
+                          prob: place.weather.precipitationProbabilityPct ?? 0,
+                        })}
+                      </Text>
+                    </View>
+                  )}
+              </View>
+
+              {place.weather.hasWeatherWarning ? (
+                <View
+                  style={[
+                    styles.alertBox,
+                    { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+                  ]}
+                >
+                  <Text style={[styles.alertBody, { color: colors.danger, fontWeight: '600' }]}>
+                    {t('fe2.place_detail.weather_warning_box', {
+                      prob: place.weather.precipitationProbabilityPct ?? 80,
+                      wind: place.weather.windSpeedKmh ?? 25,
+                    })}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.hoursText}>
+                  {t('fe2.place_detail.weather_safe_box')}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Personal Fit Breakdown */}
+          <View
             style={[
-              styles.actionBtnText,
-              { color: hasVoted ? colors.success : colors.subtext },
+              styles.card,
+              { borderColor: colors.purple, borderWidth: 1 },
             ]}
           >
-            {hasVoted ? t('fe2.place_detail.voted_this_place') : t('fe2.place_detail.vote_this_place')}
-          </Text>
-        </TouchableOpacity>
+            <Text style={[styles.sectionTitle, { color: colors.purple }]}>
+              🎯 {t('fe2.place_detail.viewer_section_title')}
+            </Text>
 
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
-          onPress={handleOpenNavigation}
-        >
-          <Navigation size={18} color="#fff" />
-          <Text style={[styles.actionBtnText, { color: '#fff' }]}>
-            {t('fe2.common.send_directions')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+            {utilityRows.map((row, idx) => {
+              const pct = Math.round(row.value * 100);
+              return (
+                <View key={idx} style={styles.utilityRow}>
+                  <View style={styles.utilityLabelRow}>
+                    <Text style={styles.utilityLabel}>{row.label}</Text>
+                    <Text style={[styles.utilityPct, { color: row.color }]}>{pct}%</Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${pct}%`, backgroundColor: row.color },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+
+            {place.viewerFeature.matchedTags.length > 0 && (
+              <View style={{ marginTop: 4, gap: 6 }}>
+                <Text style={styles.subMeta}>
+                  {t('fe2.place_detail.matched_tags_label')}
+                </Text>
+                <View style={styles.badgeRow}>
+                  {place.viewerFeature.matchedTags.map((tag) => {
+                    const isAvoid = tag.level === 'avoid';
+                    const isHigh = tag.level === 'high';
+                    return (
+                      <View
+                        key={tag.tagCode}
+                        style={[
+                          styles.badge,
+                          {
+                            backgroundColor: isAvoid
+                              ? colors.dangerLight
+                              : isHigh
+                                ? colors.successLight
+                                : colors.surfaceAlt,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            {
+                              color: isAvoid
+                                ? colors.danger
+                                : isHigh
+                                  ? colors.success
+                                  : colors.subtext,
+                            },
+                          ]}
+                        >
+                          {t(`preference.level.${tag.level}` as any)}:{' '}
+                          {t(`tags.${tag.tagCode}` as any)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.privacyNote}>
+              {t('fe2.place_detail.viewer_privacy_note')}
+            </Text>
+          </View>
+
+          {/* ETA, Travel Mode & Traffic */}
+          <View style={styles.card}>
+            <View style={styles.sectionTopRow}>
+              <Text style={styles.sectionTitle}>{t('fe2.place_detail.eta_section')}</Text>
+              <View
+                style={[
+                  styles.smallBadge,
+                  {
+                    backgroundColor:
+                      effectiveRoutingPreference === 'TRAFFIC_AWARE'
+                        ? colors.successLight
+                        : colors.warningLight,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.smallBadgeText,
+                    {
+                      color:
+                        effectiveRoutingPreference === 'TRAFFIC_AWARE'
+                          ? colors.success
+                          : colors.warning,
+                    },
+                  ]}
+                >
+                  {effectiveRoutingPreference === 'TRAFFIC_AWARE'
+                    ? t('fe2.recommendation.traffic_aware_badge')
+                    : t('fe2.recommendation.traffic_unaware_badge')}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.etaSummary}>
+              <View style={styles.etaBox}>
+                <Text style={styles.etaLabel}>{t('fe2.common.avg_eta')}</Text>
+                <Text style={styles.etaValue}>
+                  {avgEtaMin} {t('fe2.common.min')}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.etaBox,
+                  {
+                    backgroundColor: colors.primaryLight,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
+                <Text style={styles.etaLabel}>{t('fe2.common.max_eta')}</Text>
+                <Text style={styles.etaValue}>
+                  {maxEtaMin} {t('fe2.common.min')}
+                </Text>
+              </View>
+            </View>
+
+            {place.memberEtas.map((m) => {
+              const etaMin = Math.round(m.etaSeconds / 60);
+              const staticMin = Math.round(m.staticDurationSeconds / 60);
+              const deltaMin =
+                effectiveRoutingPreference === 'TRAFFIC_AWARE'
+                  ? Math.max(0, etaMin - staticMin)
+                  : 0;
+              const modeIcon = m.travelMode === 'DRIVE' ? '🚗' : '🛵';
+              const modeLabel =
+                m.travelMode === 'DRIVE'
+                  ? t('fe2.recommendation.travel_mode_drive')
+                  : t('fe2.recommendation.travel_mode_two_wheeler');
+
+              return (
+                <View key={m.participantId} style={styles.memberRow}>
+                  <Text style={styles.memberName}>
+                    {modeIcon} {m.name === 'Bạn' ? t('fe2.common.you') : m.name} ({modeLabel})
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {deltaMin > 0 && (
+                      <Text style={{ fontSize: 11, color: colors.warning, fontWeight: '600' }}>
+                        ({t('fe2.recommendation.traffic_delta', { mins: deltaMin })})
+                      </Text>
+                    )}
+                    <Text style={[styles.memberEta, { color: colors.primary }]}>
+                      {etaMin} {t('fe2.common.min')}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+
+            <Text style={styles.noDataHint}>
+              {t('fe2.place_detail.no_departure_note')}
+            </Text>
+          </View>
+
+          {/* Rating & Lazy-Loaded Community Reviews */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t('fe2.place_detail.rating_section')}</Text>
+            {place.rating !== null ? (
+              <View style={styles.ratingRow}>
+                <Text style={styles.ratingNumber}>{place.rating.toFixed(1)}</Text>
+                <Text style={{ fontSize: 14 }}>⭐⭐⭐⭐⭐</Text>
+                <Text style={styles.reviewCount}>
+                  {t('fe2.place_detail.reviews_count', {
+                    count: (place.userRatingCount ?? 0).toLocaleString(),
+                  })}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.noDataHint}>{t('fe2.common.no_rating')}</Text>
+            )}
+
+            {/* Community Reviews with Lazy Loading */}
+            <View style={styles.reviewsDivider} />
+            <Text style={styles.sectionTitle}>
+              {t('fe2.place_detail.community_reviews_section')}
+            </Text>
+            {allReviews.slice(0, visibleReviewsCount).map((rev) => (
+              <View
+                key={rev.id}
+                style={[styles.reviewCard, { backgroundColor: colors.surfaceAlt }]}
+              >
+                <View style={styles.reviewHeader}>
+                  <Text style={styles.reviewAuthor}>
+                    {rev.author} {rev.stars}
+                  </Text>
+                  <Text style={styles.reviewTime}>{rev.time}</Text>
+                </View>
+                <Text style={styles.reviewText}>{rev.text}</Text>
+              </View>
+            ))}
+
+            {isLoadingMoreReviews ? (
+              <View style={{ gap: 6, marginTop: 4 }}>
+                <Text style={[styles.subMeta, { color: colors.primary, fontWeight: '600' }]}>
+                  {t('fe2.place_detail.loading_more_reviews')}
+                </Text>
+                <ReviewItemSkeleton />
+              </View>
+            ) : hasMoreReviews ? (
+              <TouchableOpacity
+                style={[styles.loadMoreBtn, { borderColor: colors.border }]}
+                onPress={handleLoadMoreReviews}
+              >
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>
+                  {t('fe2.place_detail.load_more_reviews_btn')}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.noDataHint, { textAlign: 'center', marginTop: 4 }]}>
+                {t('fe2.place_detail.all_reviews_loaded')}
+              </Text>
+            )}
+          </View>
+
+          {/* Stale Context Lock Notice */}
+          {isStale && (
+            <View
+              style={[
+                styles.alertBox,
+                { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+              ]}
+            >
+              <Text style={[styles.alertBody, { color: colors.danger, fontWeight: '700' }]}>
+                {t('fe2.place_detail.stale_locked_hint')}
+              </Text>
+            </View>
+          )}
+
+          {/* Same-run Sync Confirmation Note */}
+          {(isVoted || isFinalized) && !isStale && (
+            <View
+              style={[
+                styles.alertBox,
+                { backgroundColor: colors.successLight, borderColor: colors.success },
+              ]}
+            >
+              <Text style={[styles.alertBody, { color: colors.success, fontWeight: '600' }]}>
+                {t('fe2.place_detail.same_run_synced_note', { runId })}
+              </Text>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={styles.actionColumn}>
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                { backgroundColor: colors.purpleLight, borderColor: colors.purple },
+              ]}
+              onPress={() => router.push(routes.placeExplanation(place.placeId, place.name))}
+            >
+              <Sparkles size={18} color={colors.purple} />
+              <Text style={[styles.actionBtnText, { color: colors.purple }]}>
+                {t('fe2.recommendation.why_button')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={isStale || isAnyFinalized}
+              style={[
+                styles.actionBtn,
+                isVoted
+                  ? { backgroundColor: colors.successLight, borderColor: colors.success }
+                  : { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                (isStale || isAnyFinalized) && { opacity: 0.55 },
+              ]}
+              onPress={handleVote}
+            >
+              {isStale ? (
+                <Lock size={18} color={colors.subtext} />
+              ) : (
+                <CheckCircle2 size={18} color={isVoted ? colors.success : colors.subtext} />
+              )}
+              <Text
+                style={[
+                  styles.actionBtnText,
+                  { color: isVoted ? colors.success : colors.subtext },
+                ]}
+              >
+                {isVoted
+                  ? t('fe2.place_detail.voted_this_place')
+                  : t('fe2.place_detail.vote_this_place')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={isStale || isFinalized}
+              style={[
+                styles.actionBtn,
+                isFinalized
+                  ? { backgroundColor: colors.successLight, borderColor: colors.success }
+                  : { backgroundColor: colors.infoLight, borderColor: colors.info },
+                isStale && { opacity: 0.55 },
+              ]}
+              onPress={() => setFinalizeDialogVisible(true)}
+            >
+              <MapPinCheck size={18} color={isFinalized ? colors.success : colors.info} />
+              <Text
+                style={[
+                  styles.actionBtnText,
+                  { color: isFinalized ? colors.success : colors.info },
+                ]}
+              >
+                {isFinalized
+                  ? t('fe2.place_detail.finalized_this_place')
+                  : t('fe2.place_detail.finalize_this_place')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                isFavorite
+                  ? { backgroundColor: colors.dangerLight, borderColor: colors.danger }
+                  : { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+              onPress={handleFavorite}
+            >
+              <Heart
+                size={18}
+                color={isFavorite ? colors.danger : colors.subtext}
+                fill={isFavorite ? colors.danger : 'transparent'}
+              />
+              <Text
+                style={[
+                  styles.actionBtnText,
+                  { color: isFavorite ? colors.danger : colors.subtext },
+                ]}
+              >
+                {isFavorite
+                  ? t('fe2.place_detail.favorite_added')
+                  : t('fe2.place_detail.favorite_add')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={handleOpenNavigation}
+            >
+              <Navigation size={18} color="#fff" />
+              <Text style={[styles.actionBtnText, { color: '#fff' }]}>
+                {t('fe2.common.send_directions')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </>
       )}
+
+      {/* Finalize Confirm Dialog */}
+      <ConfirmDialog
+        visible={finalizeDialogVisible}
+        title={t('fe2.place_detail.finalize_confirm_title')}
+        message={t('fe2.place_detail.finalize_confirm_body', {
+          name: place.name,
+          runId,
+        })}
+        confirmLabel={t('common.confirm')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={handleConfirmFinalize}
+        onCancel={() => setFinalizeDialogVisible(false)}
+      />
     </ScrollView>
   );
 }
@@ -200,35 +782,141 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     content: { padding: 16, gap: 12, paddingBottom: 32 },
-    name: { fontSize: 22, fontWeight: '800', color: c.text },
-    address: { fontSize: 13, color: c.placeholder, marginTop: 4, marginBottom: 8 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    rankBadge: {
+      backgroundColor: c.primaryLight,
+      color: c.primary,
+      fontWeight: '800',
+      fontSize: 13,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+    },
+    name: { fontSize: 20, fontWeight: '800', color: c.text, flex: 1 },
+    address: { fontSize: 13, color: c.placeholder, marginBottom: 4 },
     card: { backgroundColor: c.surface, borderRadius: 14, padding: 14, gap: 8 },
+    sectionTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
     sectionTitle: { fontSize: 14, fontWeight: '700', color: c.subtext },
-    badge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-    badgeText: { fontSize: 13, fontWeight: '600' },
-    hoursText: { fontSize: 13, color: c.subtext },
-    noDataHint: { fontSize: 12, color: c.placeholder, lineHeight: 18, fontStyle: 'italic' },
+    subMeta: { fontSize: 12, color: c.subtext },
+    badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    badge: {
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
+    badgeText: { fontSize: 12, fontWeight: '600' },
+    smallBadge: {
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    smallBadgeText: { fontSize: 11, fontWeight: '700' },
+    alertBox: {
+      borderRadius: 10,
+      borderWidth: 1,
+      padding: 10,
+      gap: 4,
+    },
+    alertTitle: { fontSize: 13, fontWeight: '800' },
+    alertBody: { fontSize: 12, lineHeight: 18 },
+    hoursText: { fontSize: 13, color: c.subtext, lineHeight: 19 },
+    noDataHint: {
+      fontSize: 12,
+      color: c.placeholder,
+      lineHeight: 18,
+      fontStyle: 'italic',
+    },
+    utilityRow: { gap: 4 },
+    utilityLabelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    utilityLabel: { fontSize: 12, color: c.text, fontWeight: '600' },
+    utilityPct: { fontSize: 12, fontWeight: '800' },
+    progressTrack: {
+      height: 7,
+      backgroundColor: c.surfaceAlt,
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 4,
+    },
+    privacyNote: {
+      fontSize: 11,
+      color: c.placeholder,
+      lineHeight: 16,
+      fontStyle: 'italic',
+      marginTop: 4,
+    },
     ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     ratingNumber: { fontSize: 28, fontWeight: '800', color: c.text },
     reviewCount: { fontSize: 12, color: c.placeholder },
-    etaSummary: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-    etaBox: { flex: 1, backgroundColor: c.surfaceAlt, borderRadius: 8, padding: 10, alignItems: 'center' },
+    reviewsDivider: {
+      height: 1,
+      backgroundColor: c.divider,
+      marginVertical: 4,
+    },
+    reviewCard: {
+      borderRadius: 10,
+      padding: 10,
+      gap: 4,
+    },
+    reviewHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    reviewAuthor: { fontSize: 12, fontWeight: '700', color: c.text },
+    reviewTime: { fontSize: 11, color: c.placeholder },
+    reviewText: { fontSize: 12, color: c.subtext, lineHeight: 18 },
+    loadMoreBtn: {
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingVertical: 8,
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    loadMoreText: { fontSize: 12, fontWeight: '700' },
+    etaSummary: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+    etaBox: {
+      flex: 1,
+      backgroundColor: c.surfaceAlt,
+      borderRadius: 8,
+      padding: 10,
+      alignItems: 'center',
+    },
     etaLabel: { fontSize: 10, color: c.placeholder, fontWeight: '600' },
     etaValue: { fontSize: 18, fontWeight: '700', color: c.text, marginTop: 2 },
-    memberRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderTopWidth: 1, borderTopColor: c.divider },
+    memberRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 5,
+      borderTopWidth: 1,
+      borderTopColor: c.divider,
+    },
     memberName: { fontSize: 13, color: c.subtext },
     memberEta: { fontSize: 13, fontWeight: '700' },
-    navBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-    navBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-    actionColumn: { gap: 10, marginTop: 8 },
+    actionColumn: { gap: 10, marginTop: 6 },
     actionBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      paddingVertical: 14,
+      paddingVertical: 13,
+      paddingHorizontal: 12,
       borderRadius: 12,
       borderWidth: 1,
     },
-    actionBtnText: { fontWeight: '700', fontSize: 15 },
+    actionBtnText: { fontSize: 14, fontWeight: '700' },
   });

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,115 +20,28 @@ import {
   MessageSquare,
   ChevronRight,
   X,
+  Navigation,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { PlaceCard, PlaceItem } from '@/components/meetup/PlaceCard';
-import { FilterSortModal, SortOption } from '@/components/meetup/FilterSortModal';
+import { FilterSortModal } from '@/components/meetup/FilterSortModal';
+import { TravelModeModal } from '@/components/meetup/TravelModeModal';
 import { PlaceCardSkeleton } from '@/components/common/Skeleton';
 import { routes } from '@/constants/routes';
 import { radius } from '@/theme';
+import {
+  MISSING_LOCATION_MEMBER,
+  MOCK_MEETUP_MEMBERS,
+  selectComputedRecommendations,
+  SortOption,
+  useRecommendationStore,
+} from '@/store/useRecommendationStore';
+import type { OpeningFilterMode, TravelMode, WeatherPolicy } from '@/types/recommendation';
 
-const MOCK_PLACES: PlaceItem[] = [
-  {
-    placeId: 'p1',
-    rank: 1,
-    name: 'The Coffee House - Nguyễn Huệ',
-    address: '86 Nguyễn Huệ, Q.1, TP.HCM',
-    rating: 4.5,
-    isOpenNow: true,
-    avgEta: 12,
-    maxEta: 18,
-    scaleLabel: 'exact',
-    lat: 10.7745,
-    lng: 106.7032,
-    etaPerMember: [
-      { userId: 'u1', name: 'Bạn', eta: 10 },
-      { userId: 'u2', name: 'Việt', eta: 18 },
-      { userId: 'u3', name: 'Minh', eta: 8 },
-    ],
-  },
-  {
-    placeId: 'p2',
-    rank: 2,
-    name: 'Phúc Long - Lê Lợi',
-    address: '138 Lê Lợi, Q.1, TP.HCM',
-    rating: 4.2,
-    isOpenNow: true,
-    avgEta: 15,
-    maxEta: 22,
-    scaleLabel: 'exact',
-    lat: 10.7728,
-    lng: 106.6994,
-    etaPerMember: [
-      { userId: 'u1', name: 'Bạn', eta: 12 },
-      { userId: 'u2', name: 'Việt', eta: 22 },
-      { userId: 'u3', name: 'Minh', eta: 11 },
-    ],
-  },
-  {
-    placeId: 'p3',
-    rank: 3,
-    name: 'Highlands Coffee - Vincom',
-    address: '72 Lê Thánh Tôn, Q.1, TP.HCM',
-    rating: 3.9,
-    isOpenNow: null,
-    avgEta: 18,
-    maxEta: 28,
-    scaleLabel: 'batch',
-    lat: 10.7781,
-    lng: 106.7018,
-    etaPerMember: [
-      { userId: 'u1', name: 'Bạn', eta: 9 },
-      { userId: 'u2', name: 'Việt', eta: 28 },
-      { userId: 'u3', name: 'Minh', eta: 17 },
-    ],
-  },
-  {
-    placeId: 'p4',
-    rank: 4,
-    name: 'Trung Nguyên Legend',
-    address: '17 Nguyễn Trãi, Q.1, TP.HCM',
-    rating: 4.1,
-    isOpenNow: false,
-    avgEta: 20,
-    maxEta: 30,
-    scaleLabel: 'cluster',
-    lat: 10.7695,
-    lng: 106.6922,
-    etaPerMember: [
-      { userId: 'u1', name: 'Bạn', eta: 15 },
-      { userId: 'u2', name: 'Việt', eta: 30 },
-      { userId: 'u3', name: 'Minh', eta: 15 },
-    ],
-  },
-  {
-    placeId: 'p5',
-    rank: 5,
-    name: 'Gong Cha - Đồng Khởi',
-    address: '34 Đồng Khởi, Q.1, TP.HCM',
-    rating: null,
-    isOpenNow: true,
-    avgEta: 22,
-    maxEta: 35,
-    scaleLabel: 'cluster',
-    lat: 10.7762,
-    lng: 106.7048,
-    etaPerMember: [
-      { userId: 'u1', name: 'Bạn', eta: 20 },
-      { userId: 'u2', name: 'Việt', eta: 35 },
-      { userId: 'u3', name: 'Minh', eta: 11 },
-    ],
-  },
-];
-
-const MOCK_MEMBERS = [
-  { id: 'u1', name: 'Bạn', lat: 10.7712, lng: 106.6975 },
-  { id: 'u2', name: 'Việt', lat: 10.7801, lng: 106.7062 },
-  { id: 'u3', name: 'Minh', lat: 10.7758, lng: 106.6921 },
-];
-
-const MISSING_LOCATION_MEMBER = 'Lan';
+const INITIAL_PAGE_SIZE = 4;
+const LOAD_MORE_STEP = 3;
 
 export default function RecommendationScreen() {
   const { t } = useTranslation();
@@ -137,47 +50,129 @@ export default function RecommendationScreen() {
   const mapRef = useRef<MapView>(null);
   const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
+  const storeState = useRecommendationStore();
+  const {
+    runId,
+    contextStatus,
+    openingFilter,
+    weatherPolicy,
+    sortBy,
+    memberTravelModes,
+    effectiveRoutingPreference,
+    currentViewerId,
+    votedCandidateKey,
+    finalizedCandidateKey,
+    setOpeningFilter,
+    setWeatherPolicy,
+    setSortBy,
+    setMemberTravelMode,
+    recordImpressionIfNeeded,
+    rerunForUpdatedContext,
+    resetAllFiltersAndScenarios,
+  } = storeState;
+
+  const { places: processedPlaces, runWarnings } = useMemo(
+    () => selectComputedRecommendations(storeState),
+    [storeState]
+  );
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [places, setPlaces] = useState<PlaceItem[]>(MOCK_PLACES);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_PAGE_SIZE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [filterOpenNow, setFilterOpenNow] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('avgEta');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [travelModalVisible, setTravelModalVisible] = useState(false);
   const [selectedMapPlace, setSelectedMapPlace] = useState<PlaceItem | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
+    const timer = setTimeout(() => setIsLoading(false), 650);
     return () => clearTimeout(timer);
   }, []);
 
+  // Trigger brief Skeleton shimmer when filter, sort, or travel mode changes
+  const triggerFilterSkeleton = useCallback(() => {
+    setVisibleCount(INITIAL_PAGE_SIZE);
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 420);
+  }, []);
+
+  const handleSelectSortBy = useCallback(
+    (nextSort: SortOption) => {
+      setSortBy(nextSort);
+      triggerFilterSkeleton();
+    },
+    [setSortBy, triggerFilterSkeleton]
+  );
+
+  const handleSelectOpeningFilter = useCallback(
+    (nextFilter: OpeningFilterMode) => {
+      setOpeningFilter(nextFilter);
+      triggerFilterSkeleton();
+    },
+    [setOpeningFilter, triggerFilterSkeleton]
+  );
+
+  const handleSelectWeatherPolicy = useCallback(
+    (nextPolicy: WeatherPolicy) => {
+      setWeatherPolicy(nextPolicy);
+      triggerFilterSkeleton();
+    },
+    [setWeatherPolicy, triggerFilterSkeleton]
+  );
+
+  const handleSelectTravelMode = useCallback(
+    (participantId: string, mode: TravelMode) => {
+      setMemberTravelMode(participantId, mode);
+      triggerFilterSkeleton();
+    },
+    [setMemberTravelMode, triggerFilterSkeleton]
+  );
+
+  const handleRerun = useCallback(() => {
+    rerunForUpdatedContext();
+    triggerFilterSkeleton();
+  }, [rerunForUpdatedContext, triggerFilterSkeleton]);
+
+  const handleResetFilters = useCallback(() => {
+    resetAllFiltersAndScenarios();
+    triggerFilterSkeleton();
+  }, [resetAllFiltersAndScenarios, triggerFilterSkeleton]);
+
+  // Slice places for Lazy Loading
+  const paginatedPlaces = useMemo(
+    () => processedPlaces.slice(0, visibleCount),
+    [processedPlaces, visibleCount]
+  );
+
+  const hasMorePlaces = visibleCount < processedPlaces.length;
+
+  const handleLoadMore = useCallback(() => {
+    if (isLoading || isRefreshing || isLoadingMore || !hasMorePlaces) return;
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((prev) => Math.min(prev + LOAD_MORE_STEP, processedPlaces.length));
+      setIsLoadingMore(false);
+    }, 550);
+  }, [hasMorePlaces, isLoading, isLoadingMore, isRefreshing, processedPlaces.length]);
+
+  // FE-22: Tự động ghi nhận RecommendationShown đúng 1 lần cho mỗi runId khi kết quả thực sự hiển thị
+  useEffect(() => {
+    if (!isLoading && paginatedPlaces.length > 0) {
+      recordImpressionIfNeeded(paginatedPlaces);
+    }
+  }, [isLoading, runId, paginatedPlaces, recordImpressionIfNeeded]);
+
+  // Pull-to-Refresh
   const handleRefresh = useSinglePress(() => {
     setIsRefreshing(true);
     setTimeout(() => {
-      setPlaces((prev) =>
-        prev.map((p) => ({
-          ...p,
-          avgEta: Math.max(5, p.avgEta + (Math.random() > 0.5 ? 1 : -1)),
-        }))
-      );
+      setVisibleCount(INITIAL_PAGE_SIZE);
       setIsRefreshing(false);
-    }, 1000);
-  }, 1000);
-
-  // Filter & Sort processed list
-  const processedPlaces = useMemo(() => {
-    let result = [...places];
-    if (filterOpenNow) {
-      result = result.filter((p) => p.isOpenNow === true);
-    }
-    result.sort((a, b) => {
-      if (sortBy === 'avgEta') return a.avgEta - b.avgEta;
-      if (sortBy === 'maxEta') return a.maxEta - b.maxEta;
-      if (sortBy === 'rating') return (b.rating ?? 0) - (a.rating ?? 0);
-      return 0;
-    });
-    return result;
-  }, [places, filterOpenNow, sortBy]);
+    }, 700);
+  }, 800);
 
   const handlePlacePress = useSinglePress((place: PlaceItem) =>
     router.push(routes.placeDetail(place.placeId))
@@ -187,16 +182,25 @@ export default function RecommendationScreen() {
     router.push(routes.placeExplanation(place.placeId, place.name))
   );
 
-  const handleResetFilters = () => {
-    setFilterOpenNow(false);
-    setSortBy('avgEta');
-  };
+  const currentViewerMember = useMemo(
+    () =>
+      MOCK_MEETUP_MEMBERS.find((m) => m.participantId === currentViewerId) ??
+      MOCK_MEETUP_MEMBERS[0],
+    [currentViewerId]
+  );
 
   const sortLabel = useMemo(() => {
+    if (sortBy === 'rank') return t('fe2.recommendation.sort_rank');
     if (sortBy === 'avgEta') return t('fe2.recommendation.sort_avg_eta');
     if (sortBy === 'maxEta') return t('fe2.recommendation.sort_max_eta');
     return t('fe2.recommendation.sort_rating');
   }, [sortBy, t]);
+
+  const openingFilterPillLabel = useMemo(() => {
+    if (openingFilter === 'OPEN_AT_SCHEDULED_TIME') return '🟢 Mở lúc hẹn (19:00)';
+    if (openingFilter === 'OPEN_AT_REQUEST_TIME') return t('fe2.recommendation.filter_open_now');
+    return 'Tất cả giờ mở';
+  }, [openingFilter, t]);
 
   return (
     <View style={styles.container}>
@@ -208,25 +212,111 @@ export default function RecommendationScreen() {
               style={{ padding: 6, marginRight: 4 }}
               accessibilityLabel={t('fe2.chat.screen_title')}
             >
-              <MessageSquare size={22} color={colors.primary} />
+              <MessageSquare size={21} color={colors.primary} />
             </TouchableOpacity>
           ),
         }}
       />
+
+      {/* Scheduled Time + Travel Mode Bar */}
+      <View style={styles.contextStrip}>
+        <View style={styles.contextLeft}>
+          <Clock
+            size={14}
+            color={contextStatus === 'STALE_CONTEXT' ? colors.danger : colors.primary}
+          />
+          <Text style={styles.contextLabel}>
+            {t('fe2.recommendation.scheduled_at_label')}{' '}
+            <Text
+              style={{
+                fontWeight: '700',
+                color: contextStatus === 'STALE_CONTEXT' ? colors.danger : colors.text,
+              }}
+            >
+              {contextStatus === 'STALE_CONTEXT'
+                ? t('fe2.recommendation.scheduled_time_stale_value')
+                : t('fe2.recommendation.scheduled_time_value')}
+            </Text>
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.travelBtn, { borderColor: colors.primary }]}
+          onPress={() => setTravelModalVisible(true)}
+        >
+          <Navigation size={13} color={colors.primary} />
+          <Text style={[styles.travelBtnText, { color: colors.primary }]}>
+            {t('fe2.recommendation.travel_mode_btn')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* STALE_CONTEXT Warning Banner + Re-run CTA */}
+      {contextStatus === 'STALE_CONTEXT' && (
+        <View
+          style={[
+            styles.staleBanner,
+            { backgroundColor: colors.dangerLight, borderBottomColor: colors.danger },
+          ]}
+        >
+          <Text style={[styles.staleBannerTitle, { color: colors.danger }]}>
+            {t('fe2.recommendation.stale_banner_title', { newTime: '21:30' })}
+          </Text>
+          <Text style={[styles.staleBannerDesc, { color: colors.text }]}>
+            {t('fe2.recommendation.stale_banner_desc', { oldTime: '19:00' })}
+          </Text>
+          <TouchableOpacity
+            style={[styles.rerunBtn, { backgroundColor: colors.danger }]}
+            onPress={handleRerun}
+          >
+            <RefreshCw size={14} color="#fff" />
+            <Text style={styles.rerunBtnText}>
+              {t('fe2.recommendation.stale_rerun_btn')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* WEATHER_FILTER_RELAXED Warning Banner */}
+      {runWarnings.includes('WEATHER_FILTER_RELAXED') && (
+        <View
+          style={[
+            styles.alertBanner,
+            { backgroundColor: colors.infoLight, borderBottomColor: colors.info },
+          ]}
+        >
+          <Text style={[styles.alertBannerText, { color: colors.info }]}>
+            {t('fe2.recommendation.weather_relaxed_banner')}
+          </Text>
+        </View>
+      )}
+
+      {/* TRAFFIC_DATA_UNAVAILABLE Warning Banner */}
+      {runWarnings.includes('TRAFFIC_DATA_UNAVAILABLE') && (
+        <View
+          style={[
+            styles.alertBanner,
+            { backgroundColor: colors.warningLight, borderBottomColor: colors.warning },
+          ]}
+        >
+          <Text style={[styles.alertBannerText, { color: colors.warning }]}>
+            {t('fe2.recommendation.traffic_fallback_banner')}
+          </Text>
+        </View>
+      )}
 
       {/* Missing Location Banner */}
       <View style={styles.missingBanner}>
         <Text style={styles.missingText}>
           {t('fe2.recommendation.missing_location', {
             name: MISSING_LOCATION_MEMBER,
-            count: MOCK_PLACES[0].etaPerMember.length,
+            count: MOCK_MEETUP_MEMBERS.length,
           })}
         </Text>
       </View>
 
-      {/* Control Bar: View Mode Segment + Filter/Sort Trigger */}
+      {/* Control Bar: View Mode Segment + Filter/Policy Trigger */}
       <View style={styles.controlBar}>
-        {/* View Mode Segmented Control */}
         <View style={styles.segmentContainer}>
           <TouchableOpacity
             style={[styles.segmentBtn, viewMode === 'list' && styles.segmentBtnActive]}
@@ -265,7 +355,6 @@ export default function RecommendationScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Filter & Sort Button */}
         <TouchableOpacity
           style={styles.filterSortTrigger}
           onPress={() => setFilterModalVisible(true)}
@@ -274,30 +363,30 @@ export default function RecommendationScreen() {
           <Text style={styles.filterSortTriggerText}>
             {t('fe2.recommendation.filter_sort_btn')}
           </Text>
-          {filterOpenNow && <View style={styles.activeDot} />}
+          {(openingFilter !== 'OPEN_AT_SCHEDULED_TIME' || weatherPolicy !== 'WARN_ONLY') && (
+            <View style={styles.activeDot} />
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Filter summary pills bar */}
+      {/* Filter & Context summary pills bar */}
       <View style={styles.summaryBar}>
         <View style={styles.pillRow}>
           <View style={styles.activePill}>
             <Text style={styles.activePillText}>{sortLabel}</Text>
           </View>
-          {filterOpenNow && (
-            <View style={[styles.activePill, { backgroundColor: colors.successLight }]}>
-              <Text style={[styles.activePillText, { color: colors.success }]}>
-                {t('fe2.recommendation.filter_open_now')}
-              </Text>
-            </View>
-          )}
+          <View style={[styles.activePill, { backgroundColor: colors.successLight }]}>
+            <Text style={[styles.activePillText, { color: colors.success }]}>
+              {openingFilterPillLabel}
+            </Text>
+          </View>
         </View>
         <Text style={styles.resultCount}>
           {t('fe2.recommendation.result_count', { count: processedPlaces.length })}
         </Text>
       </View>
 
-      {/* Main Content Area: List or Map */}
+      {/* Main Content Area: List (with Skeleton + Lazy Loading + Pull-to-Refresh) or Map */}
       {viewMode === 'list' ? (
         isLoading ? (
           <View style={styles.list}>
@@ -307,16 +396,24 @@ export default function RecommendationScreen() {
           </View>
         ) : (
           <FlatList
-            data={processedPlaces}
+            data={paginatedPlaces}
             keyExtractor={(item) => item.placeId}
             renderItem={({ item }) => (
               <PlaceCard
                 place={item}
+                scheduledTimeText="19:00"
+                weatherPolicy={weatherPolicy}
+                routingPreference={effectiveRoutingPreference}
+                currentViewerName={currentViewerMember.name}
+                isVoted={votedCandidateKey === item.canonicalCandidateKey}
+                isFinalized={finalizedCandidateKey === item.canonicalCandidateKey}
                 onPress={handlePlacePress}
                 onWhyPress={handleWhyPress}
               />
             )}
             contentContainerStyle={styles.list}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.35}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
@@ -326,9 +423,27 @@ export default function RecommendationScreen() {
                 progressBackgroundColor={colors.surface}
               />
             }
+            ListFooterComponent={
+              processedPlaces.length === 0 ? null : isLoadingMore ? (
+                <View style={styles.lazyFooter}>
+                  <Text style={[styles.lazyFooterText, { color: colors.primary }]}>
+                    {t('fe2.recommendation.loading_more_places')}
+                  </Text>
+                  <PlaceCardSkeleton />
+                </View>
+              ) : !hasMorePlaces ? (
+                <Text style={styles.allLoadedText}>
+                  {t('fe2.recommendation.all_places_loaded', {
+                    count: processedPlaces.length,
+                  })}
+                </Text>
+              ) : null
+            }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>{t('fe2.recommendation.empty_filtered')}</Text>
+                <Text style={styles.emptyText}>
+                  {t('fe2.recommendation.empty_filtered')}
+                </Text>
               </View>
             }
           />
@@ -348,11 +463,11 @@ export default function RecommendationScreen() {
             }}
           >
             {/* Member Markers */}
-            {MOCK_MEMBERS.map((m) => {
+            {MOCK_MEETUP_MEMBERS.map((m) => {
               const displayName = m.name === 'Bạn' ? t('fe2.common.you') : m.name;
               return (
                 <Marker
-                  key={m.id}
+                  key={m.participantId}
                   coordinate={{ latitude: m.lat, longitude: m.lng }}
                   title={`${t('fe2.recommendation.map_member_label')}: ${displayName}`}
                 >
@@ -392,7 +507,9 @@ export default function RecommendationScreen() {
             <View style={styles.mapCard}>
               <View style={styles.mapCardHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.mapCardRank}>#{selectedMapPlace.rank} • {selectedMapPlace.name}</Text>
+                  <Text style={styles.mapCardRank}>
+                    #{selectedMapPlace.rank} • {selectedMapPlace.name}
+                  </Text>
                   <Text style={styles.mapCardAddress} numberOfLines={1}>
                     {selectedMapPlace.address}
                   </Text>
@@ -414,7 +531,15 @@ export default function RecommendationScreen() {
                 )}
                 <View style={styles.metaRow}>
                   <Clock size={13} color={colors.primary} />
-                  <Text style={styles.metaText}>{t('fe2.recommendation.avg_prefix')} {selectedMapPlace.avgEta} {t('fe2.common.min')}</Text>
+                  <Text style={styles.metaText}>
+                    {t('fe2.recommendation.avg_prefix')}{' '}
+                    {Math.round(selectedMapPlace.avgEtaSeconds / 60)} {t('fe2.common.min')}
+                  </Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Text style={[styles.metaText, { color: colors.purple }]}>
+                    🎯 {Math.round(selectedMapPlace.viewerFeature.memberUtility * 100)}%
+                  </Text>
                 </View>
               </View>
 
@@ -444,15 +569,26 @@ export default function RecommendationScreen() {
         </View>
       )}
 
-      {/* Filter and Sort Bottom Sheet Modal */}
+      {/* Filter & Policy Bottom Sheet Modal */}
       <FilterSortModal
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         sortBy={sortBy}
-        onSelectSortBy={setSortBy}
-        filterOpenNow={filterOpenNow}
-        onToggleOpenNow={setFilterOpenNow}
+        onSelectSortBy={handleSelectSortBy}
+        openingFilter={openingFilter}
+        onSelectOpeningFilter={handleSelectOpeningFilter}
+        weatherPolicy={weatherPolicy}
+        onSelectWeatherPolicy={handleSelectWeatherPolicy}
         onReset={handleResetFilters}
+      />
+
+      {/* Travel Mode & Traffic Info Modal */}
+      <TravelModeModal
+        visible={travelModalVisible}
+        onClose={() => setTravelModalVisible(false)}
+        memberTravelModes={memberTravelModes}
+        onSelectTravelMode={handleSelectTravelMode}
+        routingPreference={effectiveRoutingPreference}
       />
     </View>
   );
@@ -461,12 +597,84 @@ export default function RecommendationScreen() {
 const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['colors']) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    contextStrip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: c.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    contextLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flex: 1,
+    },
+    contextLabel: {
+      fontSize: 12,
+      color: c.subtext,
+    },
+    travelBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1,
+      borderRadius: radius.sm,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      backgroundColor: c.primaryLight,
+    },
+    travelBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    staleBanner: {
+      borderBottomWidth: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      gap: 6,
+    },
+    staleBannerTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    staleBannerDesc: {
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    rerunBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      borderRadius: radius.sm,
+      marginTop: 2,
+    },
+    rerunBtnText: {
+      color: '#fff',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    alertBanner: {
+      borderBottomWidth: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    alertBannerText: {
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '600',
+    },
     missingBanner: {
       backgroundColor: c.warningLight,
       borderBottomWidth: 1,
       borderBottomColor: c.warning,
       paddingHorizontal: 16,
-      paddingVertical: 8,
+      paddingVertical: 7,
     },
     missingText: { fontSize: 12, color: c.warning },
     controlBar: {
@@ -535,11 +743,14 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingBottom: 8,
+      gap: 8,
     },
     pillRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 6,
+      flex: 1,
     },
     activePill: {
       backgroundColor: c.primaryLight,
@@ -554,8 +765,30 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     resultCount: { fontSize: 12, color: c.placeholder },
     list: { paddingHorizontal: 16, paddingBottom: 24 },
+    lazyFooter: {
+      paddingTop: 4,
+      paddingBottom: 12,
+      gap: 8,
+    },
+    lazyFooterText: {
+      fontSize: 12,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    allLoadedText: {
+      textAlign: 'center',
+      fontSize: 12,
+      color: c.placeholder,
+      paddingVertical: 14,
+      fontStyle: 'italic',
+    },
     emptyState: { paddingVertical: 48, alignItems: 'center' },
-    emptyText: { textAlign: 'center', color: c.placeholder, fontSize: 14, lineHeight: 22 },
+    emptyText: {
+      textAlign: 'center',
+      color: c.placeholder,
+      fontSize: 14,
+      lineHeight: 22,
+    },
     mapContainer: { flex: 1 },
     map: { flex: 1 },
     memberPin: {
@@ -612,8 +845,9 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     mapCardHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 8,
     },
     mapCardRank: {
       fontSize: 15,
@@ -622,7 +856,7 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     mapCardAddress: {
       fontSize: 12,
-      color: c.subtext,
+      color: c.placeholder,
       marginTop: 2,
     },
     mapCardClose: {
@@ -645,8 +879,8 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     mapCardActions: {
       flexDirection: 'row',
-      gap: 8,
-      marginTop: 4,
+      gap: 10,
+      marginTop: 2,
     },
     mapActionBtn: {
       flex: 1,
@@ -658,7 +892,7 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
       borderRadius: radius.md,
     },
     mapActionBtnText: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '700',
     },
   });

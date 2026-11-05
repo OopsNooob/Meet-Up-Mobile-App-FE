@@ -1,14 +1,12 @@
 /**
- * FE-13 — FCM, nhắc lịch và deep link
+ * FE-14 — FCM, nhắc lịch và deep link
  * Hook quản lý:
  *   - Đăng ký FCM token + gửi lên backend
  *   - Xử lý notification ở foreground và background
- *   - Deep link điều hướng đến đúng màn hình meetup
- *
- * Cài đặt: expo-notifications đã có sẵn trong package.json
+ *   - Deep link điều hướng đến đúng màn hình meetup / gợi ý / bạn bè gần đây
  */
 import { useEffect, useRef } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import type { EventSubscription } from 'expo-notifications';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
@@ -26,7 +24,7 @@ const Notifications: typeof import('expo-notifications') | null = isNotification
   : null;
 
 if (!Notifications) {
-  console.warn('[FCM] Notification bị tắt (web / Expo Go Android) — cần development build để test FE-13.');
+  console.warn('[FCM] Notification bị tắt (web / Expo Go Android) — cần development build để test.');
 }
 
 // ──── Cấu hình handler notification khi app ở foreground ──────────────────
@@ -41,29 +39,34 @@ Notifications?.setNotificationHandler({
 });
 
 // ──── Deep link mapping theo notification type ────────────────────────────
-type NotifType = 'meetup_invite' | 'meetup_finalized' | 'meetup_reminder' | 'meetup_cancelled';
+export type NotifType =
+  | 'meetup_invite'
+  | 'meetup_finalized'
+  | 'meetup_reminder'
+  | 'meetup_cancelled'
+  | 'recommendation_ready'
+  | 'nearby_detected';
 
 function navigateFromNotification(data: Record<string, unknown>) {
   const type = data?.type as NotifType | undefined;
-  const meetupId = data?.meetupId as string | undefined;
+  const meetupId = (data?.meetupId as string | undefined) ?? 'meetup-1';
 
-  if (!type || !meetupId) return;
+  if (!type) return;
 
   switch (type) {
     case 'meetup_invite':
-      // Chi tiết meetup — nơi người được mời chấp nhận/từ chối (FE-08)
-      router.push(routes.meetupDetail(meetupId));
-      break;
     case 'meetup_finalized':
-      // Chi tiết meetup hiển thị địa điểm đã chốt
+    case 'meetup_cancelled':
       router.push(routes.meetupDetail(meetupId));
       break;
     case 'meetup_reminder':
-      router.push(routes.meetupDetail(meetupId));
+      router.push(routes.meetupChat(meetupId));
       break;
-    case 'meetup_cancelled':
-      // Vẫn mở chi tiết để người dùng thấy trạng thái "đã hủy" thay vì mất dấu meetup
-      router.push(routes.meetupDetail(meetupId));
+    case 'recommendation_ready':
+      router.push(routes.meetupRecommendations(meetupId));
+      break;
+    case 'nearby_detected':
+      router.push(routes.settingsNearby);
       break;
     default:
       router.push(routes.tabMeetups);
@@ -78,7 +81,6 @@ export function useFCM() {
 
   useEffect(() => {
     if (!Notifications) return;
-    let isMounted = true;
 
     // 1. Xin quyền + lấy FCM token
     (async () => {
@@ -95,13 +97,9 @@ export function useFCM() {
         return;
       }
 
-      // Lấy Expo Push Token (dùng cho FCM qua Expo)
       const tokenData = await Notifications.getExpoPushTokenAsync();
       const expoPushToken = tokenData.data;
       console.log('[FCM] Expo Push Token:', expoPushToken);
-
-      // TODO: Gửi token này lên backend để lưu vào device_tokens
-      // await api.post('/notifications/register', { token: expoPushToken });
 
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
@@ -112,13 +110,12 @@ export function useFCM() {
       }
     })();
 
-    // 2. Foreground notification — hiển thị alert + điều hướng khi người dùng tap
+    // 2. Foreground notification
     notifListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('[FCM] Foreground notification received:', notification);
-      // Notification đã tự hiện qua setNotificationHandler
     });
 
-    // 3. Background / killed state — người dùng tap vào notification
+    // 3. Background / killed state
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('[FCM] User tapped notification:', response);
       const data = response.notification.request.content.data as Record<string, unknown>;
@@ -138,7 +135,6 @@ export async function handleInitialNotification() {
   const lastResponse = await Notifications.getLastNotificationResponseAsync();
   if (lastResponse) {
     const data = lastResponse.notification.request.content.data as Record<string, unknown>;
-    console.log('[FCM] App opened from killed state via notification:', data);
     navigateFromNotification(data);
   }
 }
@@ -146,7 +142,6 @@ export async function handleInitialNotification() {
 // ──── Mock: tạo local notification để test UI ─────────────────────────────
 export async function scheduleMockNotification(type: NotifType, meetupId = 'meetup-1') {
   if (!Notifications) {
-    console.warn('[FCM] Không thể tạo notification trong Expo Go (Android).');
     return;
   }
   await Notifications.scheduleNotificationAsync({
@@ -165,10 +160,14 @@ const NOTIF_TITLES: Record<NotifType, string> = {
   meetup_finalized: '📍 Địa điểm đã được chốt',
   meetup_reminder: '⏰ Meetup của bạn sắp bắt đầu',
   meetup_cancelled: '❌ Meetup đã bị hủy',
+  recommendation_ready: '✨ Đã có gợi ý địa điểm cho nhóm!',
+  nearby_detected: '👋 Phát hiện bạn bè đang ở gần!',
 };
 const NOTIF_BODIES: Record<NotifType, string> = {
   meetup_invite: 'Việt đã mời bạn tham gia meetup cuối tuần này',
   meetup_finalized: 'The Coffee House - Nguyễn Huệ đã được chọn. Tap để xem chỉ đường.',
   meetup_reminder: 'Còn 30 phút nữa. Đừng để bạn bè chờ nhé!',
   meetup_cancelled: 'Rất tiếc, meetup đã bị hủy bởi người tạo.',
+  recommendation_ready: 'Top 5 địa điểm phù hợp nhất cho giờ hẹn 19:00 đã sẵn sàng.',
+  nearby_detected: 'Huy Tran và Bao Linh đang ở trong bán kính 1km quanh bạn.',
 };

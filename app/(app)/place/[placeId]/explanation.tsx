@@ -1,44 +1,94 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
-
-type ExplainState = 'loading' | 'success' | 'fallback';
+import { ExplanationSkeleton } from '@/components/common/Skeleton';
+import {
+  selectComputedRecommendations,
+  useRecommendationStore,
+} from '@/store/useRecommendationStore';
 
 export default function AiExplanationScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { placeName } = useLocalSearchParams<{ placeId: string; placeName: string }>();
+  const { placeId, placeName } = useLocalSearchParams<{
+    placeId: string;
+    placeName: string;
+  }>();
 
-  const [state, setState] = useState<ExplainState>('loading');
-  const [explanation, setExplanation] = useState('');
-
-  const fallbackReasons = useMemo(
-    () => [
-      t('fe2.ai_explanation.fallback_reason_1'),
-      t('fe2.ai_explanation.fallback_reason_2'),
-      t('fe2.ai_explanation.fallback_reason_3'),
-    ],
-    [t]
+  const storeState = useRecommendationStore();
+  const { places } = useMemo(
+    () => selectComputedRecommendations(storeState),
+    [storeState]
   );
+
+  const place = useMemo(
+    () => places.find((p) => p.placeId === placeId) ?? places[0],
+    [places, placeId]
+  );
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleClose = useSinglePress(() => router.back(), 500);
 
   useEffect(() => {
-    const shouldFail = Math.random() < 0.3;
     const timer = setTimeout(() => {
-      if (shouldFail) {
-        setState('fallback');
-      } else {
-        setExplanation(t('fe2.ai_explanation.mock_text'));
-        setState('success');
-      }
-    }, 1500);
+      setIsLoading(false);
+    }, 550);
     return () => clearTimeout(timer);
-  }, [t]);
+  }, []);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  }, 700);
+
+  const aiSummaryText =
+    i18n.language === 'vi'
+      ? place.explanation.aiSummaryVi
+      : place.explanation.aiSummaryEn;
+
+  const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
+  const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
+  const viewerEtaMin = Math.round(place.viewerFeature.etaSeconds / 60);
+
+  const travelModeLabel =
+    place.viewerFeature.travelMode === 'DRIVE'
+      ? t('fe2.recommendation.travel_mode_drive')
+      : t('fe2.recommendation.travel_mode_two_wheeler');
+
+  const openingHighlightText = useMemo(() => {
+    if (place.opening.statusAtScheduled === 'OPEN') {
+      return t('fe2.ai_explanation.highlight_opening_open');
+    }
+    if (place.opening.statusAtScheduled === 'CLOSED') {
+      return t('fe2.ai_explanation.highlight_opening_closed');
+    }
+    return t('fe2.ai_explanation.highlight_opening_unknown');
+  }, [place.opening.statusAtScheduled, t]);
+
+  const friendlyWarnings = useMemo(() => {
+    return place.explanation.warnings.map((code) => {
+      if (code === 'CLOSING_SOON_AT_MEETUP_TIME') return t('fe2.ai_explanation.warn_closing_soon');
+      if (code === 'BAD_WEATHER_OUTDOOR') return t('fe2.ai_explanation.warn_bad_weather');
+      if (code === 'OPENING_FROM_REGULAR_HOURS') return t('fe2.ai_explanation.warn_regular_hours');
+      if (code === 'OPENING_STATUS_UNKNOWN') return t('fe2.ai_explanation.warn_unknown_hours');
+      return code;
+    });
+  }, [place.explanation.warnings, t]);
 
   return (
     <View style={styles.overlay}>
@@ -49,40 +99,117 @@ export default function AiExplanationScreen() {
             <Text style={[styles.closeText, { color: colors.placeholder }]}>✕</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.placeName}>{placeName ?? ''}</Text>
 
-        <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-          {state === 'loading' && (
-            <View style={styles.loadingState}>
-              <ActivityIndicator color={colors.purple} />
-              <Text style={styles.loadingText}>{t('fe2.ai_explanation.loading')}</Text>
-            </View>
-          )}
-          {state === 'success' && (
-            <View style={{ gap: 10 }}>
-              <View style={[styles.aiBadge, { backgroundColor: colors.purpleLight }]}>
-                <Text style={[styles.aiBadgeText, { color: colors.purple }]}>{t('fe2.ai_explanation.ai_badge')}</Text>
-              </View>
-              <Text style={styles.explanationText}>{explanation}</Text>
-              <Text style={styles.disclaimer}>{t('fe2.ai_explanation.disclaimer')}</Text>
-            </View>
-          )}
-          {state === 'fallback' && (
-            <View style={{ gap: 8 }}>
-              <View style={[styles.aiBadge, { backgroundColor: colors.warningLight }]}>
-                <Text style={[styles.aiBadgeText, { color: colors.warning }]}>{t('fe2.ai_explanation.fallback_badge')}</Text>
-              </View>
-              {fallbackReasons.map((reason, i) => (
-                <View key={i} style={styles.fallbackItem}>
-                  <Text style={[styles.bullet, { color: colors.subtext }]}>•</Text>
-                  <Text style={styles.fallbackText}>{reason}</Text>
+        <Text style={styles.placeName} numberOfLines={1}>
+          #{place.rank} • {placeName ?? place.name}
+        </Text>
+
+        <ScrollView
+          style={{ maxHeight: 420 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.purple]}
+              tintColor={colors.purple}
+              progressBackgroundColor={colors.surface}
+            />
+          }
+        >
+          {isLoading ? (
+            <ExplanationSkeleton />
+          ) : (
+            <View style={{ gap: 12 }}>
+              <View style={{ gap: 8 }}>
+                <View style={[styles.aiBadge, { backgroundColor: colors.purpleLight }]}>
+                  <Text style={[styles.aiBadgeText, { color: colors.purple }]}>
+                    {t('fe2.ai_explanation.ai_badge')}
+                  </Text>
                 </View>
-              ))}
+                <Text style={styles.explanationText}>{aiSummaryText}</Text>
+              </View>
+
+              {/* Personal Fit Summary for Current Viewer */}
+              <View
+                style={[
+                  styles.sectionBox,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.sectionTitle, { color: colors.purple }]}>
+                  🎯 {t('fe2.ai_explanation.viewer_reason_section')}
+                </Text>
+                <Text style={styles.factMeta}>
+                  •{' '}
+                  {t('fe2.ai_explanation.viewer_fit_line', {
+                    total: Math.round(place.viewerFeature.memberUtility * 100),
+                    travel: Math.round(place.viewerFeature.travelUtility * 100),
+                    pref: Math.round(place.viewerFeature.preferenceUtility * 100),
+                    quality: Math.round(place.viewerFeature.placeQualityUtility * 100),
+                  })}
+                </Text>
+                <Text style={styles.factMeta}>
+                  •{' '}
+                  {t('fe2.ai_explanation.viewer_eta_line', {
+                    mode: travelModeLabel,
+                    mins: viewerEtaMin,
+                  })}
+                </Text>
+              </View>
+
+              {/* Group Highlights (Clean & Concise) */}
+              <View
+                style={[
+                  styles.sectionBox,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                ]}
+              >
+                <Text style={styles.sectionTitle}>
+                  ✨ {t('fe2.ai_explanation.facts_section')}
+                </Text>
+                <View style={styles.highlightsList}>
+                  <Text style={styles.factMeta}>
+                    • {t('fe2.ai_explanation.highlight_avg_eta', { mins: avgEtaMin })}
+                  </Text>
+                  <Text style={styles.factMeta}>
+                    • {t('fe2.ai_explanation.highlight_max_eta', { mins: maxEtaMin })}
+                  </Text>
+                  <Text style={styles.factMeta}>• {openingHighlightText}</Text>
+                </View>
+              </View>
+
+              {/* Friendly Warnings if any */}
+              {friendlyWarnings.length > 0 && (
+                <View
+                  style={[
+                    styles.sectionBox,
+                    { backgroundColor: colors.warningLight, borderColor: colors.warning },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: colors.warning }]}>
+                    ⚠️ {t('fe2.ai_explanation.warnings_section')}
+                  </Text>
+                  {friendlyWarnings.map((w, idx) => (
+                    <Text
+                      key={idx}
+                      style={{ fontSize: 12, color: colors.warning, fontWeight: '600' }}
+                    >
+                      • {w}
+                    </Text>
+                  ))}
+                </View>
+              )}
+
+              <Text style={styles.disclaimer}>{t('fe2.ai_explanation.disclaimer')}</Text>
             </View>
           )}
         </ScrollView>
 
-        <TouchableOpacity style={[styles.okBtn, { backgroundColor: colors.primary }]} onPress={handleClose}>
+        <TouchableOpacity
+          style={[styles.okBtn, { backgroundColor: colors.primary }]}
+          onPress={handleClose}
+        >
           <Text style={styles.okBtnText}>{t('fe2.common.understood')}</Text>
         </TouchableOpacity>
       </View>
@@ -93,21 +220,66 @@ export default function AiExplanationScreen() {
 const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['colors']) =>
   StyleSheet.create({
     overlay: { flex: 1, backgroundColor: c.overlay, justifyContent: 'flex-end' },
-    modal: { backgroundColor: c.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '75%' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    modal: {
+      backgroundColor: c.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      maxHeight: '85%',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
     title: { fontSize: 18, fontWeight: '800', color: c.text },
     closeBtn: { padding: 4 },
     closeText: { fontSize: 18 },
-    placeName: { fontSize: 13, color: c.placeholder, marginBottom: 16 },
-    loadingState: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 24, justifyContent: 'center' },
-    loadingText: { fontSize: 14, color: c.placeholder },
-    aiBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
+    placeName: {
+      fontSize: 13,
+      color: c.placeholder,
+      fontWeight: '600',
+      marginBottom: 14,
+    },
+    aiBadge: {
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
     aiBadgeText: { fontSize: 11, fontWeight: '700' },
     explanationText: { fontSize: 14, color: c.subtext, lineHeight: 22 },
-    disclaimer: { fontSize: 11, color: c.placeholder, fontStyle: 'italic', marginTop: 4 },
-    fallbackItem: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-    bullet: { fontSize: 16, lineHeight: 22 },
-    fallbackText: { flex: 1, fontSize: 14, color: c.subtext, lineHeight: 22 },
-    okBtn: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
+    sectionBox: {
+      borderRadius: 10,
+      borderWidth: 1,
+      padding: 12,
+      gap: 6,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: c.text,
+    },
+    factMeta: {
+      fontSize: 13,
+      color: c.subtext,
+      lineHeight: 20,
+    },
+    highlightsList: {
+      gap: 4,
+    },
+    disclaimer: {
+      fontSize: 11,
+      color: c.placeholder,
+      fontStyle: 'italic',
+      marginTop: 2,
+    },
+    okBtn: {
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginTop: 16,
+    },
     okBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   });
