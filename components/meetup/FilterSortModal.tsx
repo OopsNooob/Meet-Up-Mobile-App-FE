@@ -1,21 +1,32 @@
 import { useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Switch } from 'react-native';
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SlidersHorizontal, X, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { Button } from '@/components/common/Button';
 import { radius, spacing } from '@/theme';
+import type { OpeningFilterMode, WeatherPolicy } from '@/types/recommendation';
+import type { SortOption } from '@/store/useRecommendationStore';
 
-export type SortOption = 'avgEta' | 'maxEta' | 'rating';
+export type { SortOption };
 
 interface FilterSortModalProps {
   visible: boolean;
   onClose: () => void;
   sortBy: SortOption;
   onSelectSortBy: (sort: SortOption) => void;
-  filterOpenNow: boolean;
-  onToggleOpenNow: (openNow: boolean) => void;
+  openingFilter: OpeningFilterMode;
+  onSelectOpeningFilter: (mode: OpeningFilterMode) => void;
+  weatherPolicy: WeatherPolicy;
+  onSelectWeatherPolicy: (policy: WeatherPolicy) => void;
   onReset: () => void;
 }
 
@@ -24,14 +35,53 @@ export function FilterSortModal({
   onClose,
   sortBy,
   onSelectSortBy,
-  filterOpenNow,
-  onToggleOpenNow,
+  openingFilter,
+  onSelectOpeningFilter,
+  weatherPolicy,
+  onSelectWeatherPolicy,
   onReset,
 }: FilterSortModalProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
+  const OPENING_OPTIONS: { id: OpeningFilterMode; titleKey: string; subKey: string }[] = [
+    {
+      id: 'OPEN_AT_SCHEDULED_TIME',
+      titleKey: 'fe2.recommendation.opening_filter_scheduled',
+      subKey: 'fe2.recommendation.opening_filter_scheduled_sub',
+    },
+    {
+      id: 'OPEN_AT_REQUEST_TIME',
+      titleKey: 'fe2.recommendation.opening_filter_request',
+      subKey: 'fe2.recommendation.opening_filter_request_sub',
+    },
+    {
+      id: 'ANY',
+      titleKey: 'fe2.recommendation.opening_filter_any',
+      subKey: 'fe2.recommendation.opening_filter_any_sub',
+    },
+  ];
+
+  const WEATHER_OPTIONS: { id: WeatherPolicy; titleKey: string; subKey: string }[] = [
+    {
+      id: 'WARN_ONLY',
+      titleKey: 'fe2.recommendation.weather_policy_warn',
+      subKey: 'fe2.recommendation.weather_policy_warn_sub',
+    },
+    {
+      id: 'FILTER_OUTDOOR',
+      titleKey: 'fe2.recommendation.weather_policy_filter',
+      subKey: 'fe2.recommendation.weather_policy_filter_sub',
+    },
+    {
+      id: 'OFF',
+      titleKey: 'fe2.recommendation.weather_policy_off',
+      subKey: 'fe2.recommendation.weather_policy_off_sub',
+    },
+  ];
+
   const SORT_OPTIONS: { id: SortOption; labelKey: string }[] = [
+    { id: 'rank', labelKey: 'fe2.recommendation.sort_rank' },
     { id: 'avgEta', labelKey: 'fe2.recommendation.sort_avg_eta' },
     { id: 'maxEta', labelKey: 'fe2.recommendation.sort_max_eta' },
     { id: 'rating', labelKey: 'fe2.recommendation.sort_rating' },
@@ -51,14 +101,15 @@ export function FilterSortModal({
       StyleSheet.create({
         overlay: {
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          backgroundColor: colors.overlay,
           justifyContent: 'flex-end',
         },
         container: {
           backgroundColor: colors.surface,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
-          paddingBottom: spacing.xl,
+          maxHeight: '85%',
+          paddingBottom: spacing.lg,
         },
         header: {
           flexDirection: 'row',
@@ -84,39 +135,49 @@ export function FilterSortModal({
           gap: spacing.lg,
         },
         sectionTitle: {
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: '700',
           color: colors.subtext,
           marginBottom: spacing.xs,
           textTransform: 'uppercase',
           letterSpacing: 0.5,
         },
-        sortGroup: {
+        group: {
           gap: 8,
         },
-        sortItem: {
+        optionItem: {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingVertical: 12,
+          paddingVertical: 11,
           paddingHorizontal: 14,
           borderRadius: radius.md,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.surfaceAlt,
+          gap: 10,
         },
-        sortItemSelected: {
+        optionItemSelected: {
           borderColor: colors.primary,
           backgroundColor: colors.primaryLight,
         },
-        sortItemText: {
-          fontSize: 15,
-          fontWeight: '500',
+        optionTextWrap: {
+          flex: 1,
+          gap: 2,
+        },
+        optionTitle: {
+          fontSize: 14,
+          fontWeight: '600',
           color: colors.text,
         },
-        sortItemTextSelected: {
+        optionTitleSelected: {
           fontWeight: '700',
           color: colors.primary,
+        },
+        optionSub: {
+          fontSize: 12,
+          color: colors.subtext,
+          lineHeight: 17,
         },
         radio: {
           width: 20,
@@ -131,32 +192,15 @@ export function FilterSortModal({
           borderColor: colors.primary,
           backgroundColor: colors.primary,
         },
-        filterRow: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingVertical: 12,
-          paddingHorizontal: 14,
-          borderRadius: radius.md,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.surfaceAlt,
-        },
-        filterLabel: {
-          fontSize: 15,
-          fontWeight: '500',
-          color: colors.text,
-        },
         footer: {
           flexDirection: 'row',
           paddingHorizontal: spacing.lg,
+          paddingTop: spacing.sm,
           gap: spacing.md,
-          marginTop: spacing.sm,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
         },
-        resetBtn: {
-          flex: 1,
-        },
-        applyBtn: {
+        btnCol: {
           flex: 1,
         },
       }),
@@ -178,25 +222,32 @@ export function FilterSortModal({
             </TouchableOpacity>
           </View>
 
-          {/* Body */}
-          <View style={styles.body}>
-            {/* Sort Section */}
+          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+            {/* FE-23: Opening Filter Mode */}
             <View>
-              <Text style={styles.sectionTitle}>{t('fe2.recommendation.sort_by')}</Text>
-              <View style={styles.sortGroup}>
-                {SORT_OPTIONS.map((opt) => {
-                  const isSelected = sortBy === opt.id;
+              <Text style={styles.sectionTitle}>
+                {t('fe2.recommendation.opening_filter_title')}
+              </Text>
+              <View style={styles.group}>
+                {OPENING_OPTIONS.map((opt) => {
+                  const isSelected = openingFilter === opt.id;
                   return (
                     <TouchableOpacity
                       key={opt.id}
-                      style={[styles.sortItem, isSelected && styles.sortItemSelected]}
-                      onPress={() => onSelectSortBy(opt.id)}
+                      style={[styles.optionItem, isSelected && styles.optionItemSelected]}
+                      onPress={() => onSelectOpeningFilter(opt.id)}
                     >
-                      <Text
-                        style={[styles.sortItemText, isSelected && styles.sortItemTextSelected]}
-                      >
-                        {t(opt.labelKey as any)}
-                      </Text>
+                      <View style={styles.optionTextWrap}>
+                        <Text
+                          style={[
+                            styles.optionTitle,
+                            isSelected && styles.optionTitleSelected,
+                          ]}
+                        >
+                          {t(opt.titleKey as any)}
+                        </Text>
+                        <Text style={styles.optionSub}>{t(opt.subKey as any)}</Text>
+                      </View>
                       <View style={[styles.radio, isSelected && styles.radioSelected]}>
                         {isSelected && <Check size={12} color="#fff" strokeWidth={3} />}
                       </View>
@@ -206,37 +257,89 @@ export function FilterSortModal({
               </View>
             </View>
 
-            {/* Filter Section */}
+            {/* FE-25: Weather Policy */}
             <View>
-              <Text style={styles.sectionTitle}>{t('fe2.recommendation.filter_section')}</Text>
-              <View style={styles.filterRow}>
-                <Text style={styles.filterLabel}>{t('fe2.recommendation.filter_open_now')}</Text>
-                <Switch
-                  value={filterOpenNow}
-                  onValueChange={onToggleOpenNow}
-                  trackColor={{ false: colors.border, true: colors.primary }}
-                />
+              <Text style={styles.sectionTitle}>
+                {t('fe2.recommendation.weather_policy_title')}
+              </Text>
+              <View style={styles.group}>
+                {WEATHER_OPTIONS.map((opt) => {
+                  const isSelected = weatherPolicy === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[styles.optionItem, isSelected && styles.optionItemSelected]}
+                      onPress={() => onSelectWeatherPolicy(opt.id)}
+                    >
+                      <View style={styles.optionTextWrap}>
+                        <Text
+                          style={[
+                            styles.optionTitle,
+                            isSelected && styles.optionTitleSelected,
+                          ]}
+                        >
+                          {t(opt.titleKey as any)}
+                        </Text>
+                        <Text style={styles.optionSub}>{t(opt.subKey as any)}</Text>
+                      </View>
+                      <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                        {isSelected && <Check size={12} color="#fff" strokeWidth={3} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.footer}>
-              <View style={styles.resetBtn}>
-                <Button
-                  label={t('fe2.recommendation.reset_filter')}
-                  variant="secondary"
-                  fullWidth
-                  onPress={handleReset}
-                />
+            {/* Sort Section */}
+            <View>
+              <Text style={styles.sectionTitle}>{t('fe2.recommendation.sort_by')}</Text>
+              <View style={styles.group}>
+                {SORT_OPTIONS.map((opt) => {
+                  const isSelected = sortBy === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[styles.optionItem, isSelected && styles.optionItemSelected]}
+                      onPress={() => onSelectSortBy(opt.id)}
+                    >
+                      <View style={styles.optionTextWrap}>
+                        <Text
+                          style={[
+                            styles.optionTitle,
+                            isSelected && styles.optionTitleSelected,
+                          ]}
+                        >
+                          {t(opt.labelKey as any)}
+                        </Text>
+                      </View>
+                      <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                        {isSelected && <Check size={12} color="#fff" strokeWidth={3} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <View style={styles.applyBtn}>
-                <Button
-                  label={t('fe2.recommendation.apply_filter')}
-                  variant="primary"
-                  fullWidth
-                  onPress={handleApply}
-                />
-              </View>
+            </View>
+          </ScrollView>
+
+          {/* Action Buttons */}
+          <View style={styles.footer}>
+            <View style={styles.btnCol}>
+              <Button
+                label={t('fe2.recommendation.reset_filter')}
+                variant="secondary"
+                fullWidth
+                onPress={handleReset}
+              />
+            </View>
+            <View style={styles.btnCol}>
+              <Button
+                label={t('fe2.recommendation.apply_filter')}
+                variant="primary"
+                fullWidth
+                onPress={handleApply}
+              />
             </View>
           </View>
         </View>

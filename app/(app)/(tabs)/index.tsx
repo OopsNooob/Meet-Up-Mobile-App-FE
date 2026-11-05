@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
-import { LocateFixed, ShieldCheck, Radar } from 'lucide-react-native';
+import { LocateFixed, ShieldCheck, Radar, RefreshCw } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { FriendMarker, Friend } from '@/components/map/FriendMarker';
 import { FriendInfoModal } from '@/components/map/FriendInfoModal';
 import { useSocket } from '@/hooks/useSocket';
+import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { routes } from '@/constants/routes';
 import type { LocationUpdatedPayload } from '@/hooks/useSocket';
 
@@ -37,7 +38,7 @@ const MOCK_FRIENDS: Friend[] = [
     userId: 'u3',
     name: 'Lan',
     lat: 10.77,
-    lng: 106.70,
+    lng: 106.7,
     accuracy: 1000,
     updatedAt: new Date(Date.now() - 2 * 60 * 1000),
     isStale: false,
@@ -52,34 +53,44 @@ export default function FriendMapScreen() {
   const mapRef = useRef<MapView>(null);
 
   const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
-  const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
+    'connecting'
+  );
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const { on, off, isConnected } = useSocket();
+  const { settings, isEffectiveSharingActive } = usePrivacyStore();
 
   useEffect(() => {
-    const timer = setTimeout(() => setSocketStatus(isConnected() ? 'connected' : 'disconnected'), 1500);
+    const timer = setTimeout(
+      () => setSocketStatus(isConnected() ? 'connected' : 'disconnected'),
+      1000
+    );
     return () => clearTimeout(timer);
   }, [isConnected]);
 
   useEffect(() => {
-    on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>('LocationUpdated', (payload) => {
-      setFriends((prev) =>
-        prev.map((f) =>
-          f.userId === payload.userId
-            ? {
-                ...f,
-                lat: payload.lat,
-                lng: payload.lng,
-                accuracy: payload.accuracy,
-                updatedAt: new Date(payload.updatedAt),
-                isStale: false,
-                precision: payload.precision || (payload.accuracy >= 1000 ? 'approximate' : 'precise'),
-              }
-            : f
-        )
-      );
-    });
+    on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>(
+      'LocationUpdated',
+      (payload) => {
+        setFriends((prev) =>
+          prev.map((f) =>
+            f.userId === payload.userId
+              ? {
+                  ...f,
+                  lat: payload.lat,
+                  lng: payload.lng,
+                  accuracy: payload.accuracy,
+                  updatedAt: new Date(payload.updatedAt),
+                  isStale: false,
+                  precision:
+                    payload.precision || (payload.accuracy >= 1000 ? 'approximate' : 'precise'),
+                }
+              : f
+          )
+        );
+      }
+    );
     return () => off('LocationUpdated');
   }, [on, off]);
 
@@ -89,12 +100,15 @@ export default function FriendMapScreen() {
   }, 400);
 
   const handleCenterMyLocation = useSinglePress(() => {
-    mapRef.current?.animateToRegion({
-      latitude: 10.7769,
-      longitude: 106.7009,
-      latitudeDelta: 0.015,
-      longitudeDelta: 0.015,
-    }, 600);
+    mapRef.current?.animateToRegion(
+      {
+        latitude: 10.7769,
+        longitude: 106.7009,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      },
+      600
+    );
   }, 500);
 
   const handleGoPrivacy = useSinglePress(() => {
@@ -104,6 +118,27 @@ export default function FriendMapScreen() {
   const handleGoNearby = useSinglePress(() => {
     router.push(routes.settingsNearby);
   }, 500);
+
+  // Cập nhật vị trí bạn bè theo thời gian thực để test ngay trên bản đồ
+  const handleSimulateMovement = useSinglePress(() => {
+    setFriends((prev) =>
+      prev.map((f) => {
+        const deltaLat = (Math.random() - 0.5) * 0.0025;
+        const deltaLng = (Math.random() - 0.5) * 0.0025;
+        return {
+          ...f,
+          lat: Number((f.lat + deltaLat).toFixed(5)),
+          lng: Number((f.lng + deltaLng).toFixed(5)),
+          updatedAt: new Date(),
+          isStale: false,
+        };
+      })
+    );
+  }, 400);
+
+  const toggleSocketConnection = () => {
+    setSocketStatus((prev) => (prev === 'connected' ? 'disconnected' : 'connected'));
+  };
 
   const STATUS_LABEL: Record<typeof socketStatus, string> = {
     connecting: t('fe2.map.socket_connecting'),
@@ -117,11 +152,50 @@ export default function FriendMapScreen() {
     disconnected: { bg: colors.dangerLight, dot: colors.danger },
   };
 
+  const myPrivacyLabel = useMemo(() => {
+    if (!isEffectiveSharingActive()) return t('fe2.map.my_status_off');
+    if (settings.useApproximateLocation) return t('fe2.map.my_status_approx');
+    return t('fe2.map.my_status_precise');
+  }, [isEffectiveSharingActive, settings.useApproximateLocation, t]);
+
   return (
     <View style={styles.container}>
+      {/* Top Status & Quick Action Bar */}
       <View style={[styles.statusBar, { backgroundColor: STATUS_COLORS[socketStatus].bg }]}>
-        <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[socketStatus].dot }]} />
-        <Text style={styles.statusText}>{STATUS_LABEL[socketStatus]}</Text>
+        <TouchableOpacity
+          style={styles.statusLeft}
+          onPress={toggleSocketConnection}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[socketStatus].dot }]} />
+          <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+            {STATUS_LABEL[socketStatus]}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.statusActions}>
+          <TouchableOpacity
+            style={[
+              styles.myPrivacyPill,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={handleGoPrivacy}
+          >
+            <Text style={[styles.myPrivacyText, { color: colors.text }]} numberOfLines={1}>
+              {myPrivacyLabel}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.movePill, { backgroundColor: colors.primary }]}
+            onPress={handleSimulateMovement}
+          >
+            <RefreshCw size={11} color="#fff" />
+            <Text style={styles.movePillText} numberOfLines={1}>
+              {t('fe2.map.simulate_move_btn')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <MapView
@@ -198,12 +272,42 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     statusBar: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      paddingVertical: 7,
       gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
     },
-    statusDot: { width: 8, height: 8, borderRadius: 4 },
-    statusText: { fontSize: 12, color: c.subtext },
+    statusLeft: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+    statusText: { flexShrink: 1, fontSize: 12, color: c.subtext, fontWeight: '600' },
+    statusActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 0,
+    },
+    myPrivacyPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    myPrivacyText: { fontSize: 11, fontWeight: '600' },
+    movePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    movePillText: { color: '#fff', fontSize: 11, fontWeight: '700' },
     legend: {
       position: 'absolute',
       bottom: 24,

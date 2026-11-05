@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -8,6 +8,7 @@ import {
   FlatList,
   StyleSheet,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Search, Check, X, Users, AlertTriangle } from 'lucide-react-native';
@@ -15,6 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { Avatar } from '@/components/common/Avatar';
 import { Button } from '@/components/common/Button';
+import { FriendRowSkeleton } from '@/components/common/Skeleton';
 import { radius, spacing } from '@/theme';
 
 export interface FriendItem {
@@ -30,6 +32,9 @@ interface FriendSelectionModalProps {
   selectedFriendIds: string[];
   onSave: (newSelectedIds: string[]) => void;
 }
+
+const INITIAL_FRIENDS_PAGE = 6;
+const LOAD_MORE_FRIENDS_STEP = 3;
 
 export function FriendSelectionModal(props: FriendSelectionModalProps) {
   if (!props.visible) return null;
@@ -47,12 +52,39 @@ function FriendSelectionContent({
   const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [tempSelected, setTempSelected] = useState<Set<string>>(() => new Set(selectedFriendIds));
+  const [visibleCount, setVisibleCount] = useState(INITIAL_FRIENDS_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const filteredFriends = useMemo(() => {
     if (!searchQuery.trim()) return friends;
     const q = searchQuery.toLowerCase().trim();
     return friends.filter((f) => f.displayName.toLowerCase().includes(q));
   }, [friends, searchQuery]);
+
+  const paginatedFriends = useMemo(
+    () => filteredFriends.slice(0, visibleCount),
+    [filteredFriends, visibleCount]
+  );
+
+  const hasMore = visibleCount < filteredFriends.length;
+
+  const handleLoadMore = useCallback(() => {
+    if (isLoadingMore || isRefreshing || !hasMore) return;
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((prev) => Math.min(prev + LOAD_MORE_FRIENDS_STEP, filteredFriends.length));
+      setIsLoadingMore(false);
+    }, 500);
+  }, [filteredFriends.length, hasMore, isLoadingMore, isRefreshing]);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setVisibleCount(INITIAL_FRIENDS_PAGE);
+      setIsRefreshing(false);
+    }, 600);
+  }, 700);
 
   const isAllSelected = useMemo(() => {
     if (friends.length === 0) return false;
@@ -194,6 +226,23 @@ function FriendSelectionContent({
           fontWeight: '600',
           color: colors.text,
         },
+        lazyFooter: {
+          paddingVertical: 8,
+        },
+        lazyFooterText: {
+          fontSize: 12,
+          color: colors.primary,
+          fontWeight: '600',
+          textAlign: 'center',
+          marginBottom: 4,
+        },
+        allLoadedText: {
+          fontSize: 11,
+          color: colors.placeholder,
+          textAlign: 'center',
+          paddingVertical: 10,
+          fontStyle: 'italic',
+        },
         emptyBox: {
           alignItems: 'center',
           justifyContent: 'center',
@@ -264,20 +313,39 @@ function FriendSelectionContent({
               placeholder={t('fe2.location.search_friends')}
               placeholderTextColor={colors.placeholder}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(q) => {
+                setSearchQuery(q);
+                setVisibleCount(INITIAL_FRIENDS_PAGE);
+              }}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery('');
+                  setVisibleCount(INITIAL_FRIENDS_PAGE);
+                }}
+              >
                 <X size={16} color={colors.placeholder} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* List of Friends with Checkboxes */}
+          {/* List of Friends with Lazy Loading & Pull-to-Refresh */}
           <FlatList
-            data={filteredFriends}
+            data={paginatedFriends}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+                progressBackgroundColor={colors.surface}
+              />
+            }
             renderItem={({ item }) => {
               const isChecked = tempSelected.has(item.id);
               return (
@@ -297,6 +365,21 @@ function FriendSelectionContent({
                 </Pressable>
               );
             }}
+            ListFooterComponent={
+              filteredFriends.length === 0 ? null : isLoadingMore ? (
+                <View style={styles.lazyFooter}>
+                  <Text style={styles.lazyFooterText}>
+                    {t('fe2.location.loading_more_friends')}
+                  </Text>
+                  <FriendRowSkeleton />
+                  <FriendRowSkeleton />
+                </View>
+              ) : !hasMore ? (
+                <Text style={styles.allLoadedText}>
+                  {t('fe2.location.all_friends_loaded', { count: filteredFriends.length })}
+                </Text>
+              ) : null
+            }
             ListEmptyComponent={
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyText}>{t('fe2.location.empty_search')}</Text>

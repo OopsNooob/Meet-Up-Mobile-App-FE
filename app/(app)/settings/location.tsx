@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,6 @@ import {
   Clock,
   Trash2,
   Plus,
-  AlertTriangle,
   CheckCircle2,
   Globe2,
 } from 'lucide-react-native';
@@ -29,17 +28,17 @@ import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { SharingMode } from '@/types/privacy';
 import { FriendSelectionModal } from '@/components/settings/FriendSelectionModal';
+import { LocationSettingsSkeleton } from '@/components/common/Skeleton';
 
 type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
-const MOCK_PERMISSION: PermissionStatus = 'granted';
-
 export default function LocationSettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { colors, isDark } = useTheme();
-  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [permission] = useState<PermissionStatus>(MOCK_PERMISSION);
+  const [permission, setPermission] = useState<PermissionStatus>('granted');
+  const [isLoading, setIsLoading] = useState(true);
   const [saveToast, setSaveToast] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -58,14 +57,27 @@ export default function LocationSettingsScreen() {
   const [friendModalVisible, setFriendModalVisible] = useState(false);
   const [selectedExpiryHours, setSelectedExpiryHours] = useState<number>(0);
 
-  const handleRetry = useSinglePress(() => Alert.alert(t('fe2.location.grant_permission'), ''), 600);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 550);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const showSavedFeedback = () => {
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2000);
+  };
+
+  const handleRetry = useSinglePress(() => {
+    setPermission('granted');
+    showSavedFeedback();
+  }, 500);
+
   const handleOpenSettings = useSinglePress(() => {
     Linking.openSettings().catch(() => {
       Alert.alert(t('fe2.location.open_settings'), '');
     });
   }, 600);
 
-  // Master switch
   const isSharingActive = settings.sharingMode !== 'off';
 
   const handleMasterToggle = (val: boolean) => {
@@ -76,11 +88,6 @@ export default function LocationSettingsScreen() {
       setSharingMode('friends');
     }
     showSavedFeedback();
-  };
-
-  const showSavedFeedback = () => {
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 2000);
   };
 
   const SHARING_MODES: { mode: SharingMode; icon: any; titleKey: string; subKey: string }[] = [
@@ -110,7 +117,6 @@ export default function LocationSettingsScreen() {
     },
   ];
 
-  // Expiration presets
   const EXPIRY_OPTIONS = [
     { label: t('fe2.location.expiry_unlimited'), hours: 0 },
     { label: t('fe2.location.expiry_1h'), hours: 1 },
@@ -155,10 +161,9 @@ export default function LocationSettingsScreen() {
     setTimeout(() => {
       setIsRefreshing(false);
       showSavedFeedback();
-    }, 800);
+    }, 700);
   }, 800);
 
-  // Selected friends list
   const selectedFriends = useMemo(() => {
     return availableFriends.filter((f) => settings.selectedFriendIds.includes(f.id));
   }, [availableFriends, settings.selectedFriendIds]);
@@ -167,7 +172,7 @@ export default function LocationSettingsScreen() {
     return availableFriends.filter((f) => !settings.selectedFriendIds.includes(f.id));
   }, [availableFriends, settings.selectedFriendIds]);
 
-  const effectiveActive = isEffectiveSharingActive();
+  const effectiveActive = isEffectiveSharingActive() && permission === 'granted';
 
   return (
     <ScrollView
@@ -191,339 +196,329 @@ export default function LocationSettingsScreen() {
         </View>
       )}
 
-      {/* === Banner Trạng thái hiệu lực === */}
-      <View
-        style={[
-          styles.statusBanner,
-          {
-            backgroundColor: effectiveActive ? colors.successLight : colors.surfaceAlt,
-            borderColor: effectiveActive ? colors.success : colors.border,
-          },
-        ]}
-      >
-        <View style={styles.statusBannerRow}>
+      {isLoading ? (
+        <LocationSettingsSkeleton />
+      ) : (
+        <>
+          {/* === Banner Trạng thái hiệu lực === */}
           <View
             style={[
-              styles.statusDotLarge,
-              { backgroundColor: effectiveActive ? colors.success : colors.placeholder },
+              styles.statusBanner,
+              {
+                backgroundColor: effectiveActive ? colors.successLight : colors.surfaceAlt,
+                borderColor: effectiveActive ? colors.success : colors.border,
+              },
             ]}
-          />
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[
-                styles.statusBannerTitle,
-                { color: effectiveActive ? colors.success : colors.subtext },
-              ]}
-            >
-              {effectiveActive
-                ? `${t('fe2.location.screen_title')}: ${t(
-                    `fe2.location.mode_${settings.sharingMode}` as any
-                  )}`
-                : t('fe2.location.mode_off')}
-            </Text>
-            {settings.sharingExpiresAt && effectiveActive && (
-              <Text style={styles.expiryDetail}>
-                {t('fe2.location.expiry_active_until', {
-                  time: new Date(settings.sharingExpiresAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                })}
-              </Text>
+          >
+            <View style={styles.statusBannerRow}>
+              <View
+                style={[
+                  styles.statusDotLarge,
+                  { backgroundColor: effectiveActive ? colors.success : colors.placeholder },
+                ]}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.statusBannerTitle,
+                    { color: effectiveActive ? colors.success : colors.subtext },
+                  ]}
+                >
+                  {effectiveActive
+                    ? `${t('fe2.location.screen_title')}: ${t(
+                        `fe2.location.mode_${settings.sharingMode}` as any
+                      )}`
+                    : t('fe2.location.mode_off')}
+                </Text>
+                {settings.sharingExpiresAt && effectiveActive && (
+                  <Text style={styles.expiryDetail}>
+                    {t('fe2.location.expiry_active_until', {
+                      time: new Date(settings.sharingExpiresAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                    })}
+                  </Text>
+                )}
+              </View>
+              {settings.useApproximateLocation && (
+                <View style={styles.approxBadge}>
+                  <Shield size={12} color={colors.primary} />
+                  <Text style={[styles.approxBadgeText, { color: colors.primary }]}>~1.1km</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={handleToggleLanguage}
+                style={[
+                  styles.langPill,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Globe2 size={12} color={colors.primary} />
+                <Text style={[styles.langPillText, { color: colors.text }]}>
+                  {i18n.language === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* === Quyền GPS Hệ điều hành === */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t('fe2.location.permission_section')}</Text>
+
+            {permission === 'granted' && (
+              <View style={styles.statusRow}>
+                <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                <Text style={styles.statusText}>{t('fe2.location.granted')}</Text>
+              </View>
+            )}
+            {permission === 'denied' && (
+              <View>
+                <View style={styles.statusRow}>
+                  <View style={[styles.dot, { backgroundColor: colors.danger }]} />
+                  <Text style={styles.statusText}>{t('fe2.location.denied')}</Text>
+                </View>
+                <Text style={styles.hint}>{t('fe2.location.denied_hint')}</Text>
+                <TouchableOpacity style={styles.btnPrimary} onPress={handleRetry}>
+                  <Text style={styles.btnTextWhite}>{t('fe2.common.retry')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {permission === 'blocked' && (
+              <View>
+                <View style={styles.statusRow}>
+                  <View style={[styles.dot, { backgroundColor: colors.warning }]} />
+                  <Text style={styles.statusText}>{t('fe2.location.blocked')}</Text>
+                </View>
+                <Text style={styles.hint}>{t('fe2.location.blocked_hint')}</Text>
+                <TouchableOpacity style={styles.btnSecondary} onPress={handleOpenSettings}>
+                  <Text style={styles.btnTextDark}>{t('fe2.location.open_settings')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {permission === 'undetermined' && (
+              <View>
+                <View style={styles.statusRow}>
+                  <View style={[styles.dot, { backgroundColor: colors.placeholder }]} />
+                  <Text style={styles.statusText}>{t('fe2.location.undetermined')}</Text>
+                </View>
+                <TouchableOpacity style={styles.btnPrimary} onPress={handleRetry}>
+                  <Text style={styles.btnTextWhite}>{t('fe2.location.grant_permission')}</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
-          {settings.useApproximateLocation && (
-            <View style={styles.approxBadge}>
-              <Shield size={12} color={colors.primary} />
-              <Text style={[styles.approxBadgeText, { color: colors.primary }]}>~1.1km</Text>
+
+          {/* === Bật / Tắt Chia sẻ Chính === */}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>{t('fe2.location.sharing_section')}</Text>
+            <View style={styles.row}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.label}>{t('fe2.location.sharing_toggle_label')}</Text>
+                <Text style={styles.sublabel}>{t('fe2.location.sharing_toggle_sub')}</Text>
+              </View>
+              <Switch
+                value={isSharingActive}
+                onValueChange={handleMasterToggle}
+                disabled={permission !== 'granted'}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+          </View>
+
+          {/* === 4 Chế độ chia sẻ === */}
+          {isSharingActive && permission === 'granted' && (
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t('fe2.location.mode_section')}</Text>
+              {SHARING_MODES.map((item) => {
+                const IconComponent = item.icon;
+                const isSelected = settings.sharingMode === item.mode;
+                return (
+                  <TouchableOpacity
+                    key={item.mode}
+                    style={[
+                      styles.modeRow,
+                      isSelected && {
+                        backgroundColor: colors.surfaceAlt,
+                        borderRadius: 10,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                    onPress={() => handleModeSelect(item.mode)}
+                  >
+                    <View
+                      style={[
+                        styles.radio,
+                        isSelected && {
+                          borderColor: colors.primary,
+                          backgroundColor: colors.primary,
+                        },
+                      ]}
+                    />
+                    <View style={styles.modeIconWrapper}>
+                      <IconComponent
+                        size={18}
+                        color={isSelected ? colors.primary : colors.placeholder}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.label, isSelected && { color: colors.primary }]}>
+                        {t(item.titleKey as any)}
+                      </Text>
+                      <Text style={styles.sublabel}>{t(item.subKey as any)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
-          <TouchableOpacity
-            onPress={handleToggleLanguage}
-            style={[styles.langPill, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <Globe2 size={12} color={colors.primary} />
-            <Text style={[styles.langPillText, { color: colors.text }]}>
-              {i18n.language === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      {/* === Quyền GPS Hệ điều hành === */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('fe2.location.permission_section')}</Text>
-        {permission === 'granted' && (
-          <View style={styles.statusRow}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
-            <Text style={styles.statusText}>{t('fe2.location.granted')}</Text>
-          </View>
-        )}
-        {permission === 'denied' && (
-          <View>
-            <View style={styles.statusRow}>
-              <View style={[styles.dot, { backgroundColor: colors.danger }]} />
-              <Text style={styles.statusText}>{t('fe2.location.denied')}</Text>
-            </View>
-            <Text style={styles.hint}>{t('fe2.location.denied_hint')}</Text>
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleRetry}>
-              <Text style={styles.btnTextWhite}>{t('fe2.common.retry')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {permission === 'blocked' && (
-          <View>
-            <View style={styles.statusRow}>
-              <View style={[styles.dot, { backgroundColor: colors.warning }]} />
-              <Text style={styles.statusText}>{t('fe2.location.blocked')}</Text>
-            </View>
-            <Text style={styles.hint}>{t('fe2.location.blocked_hint')}</Text>
-            <TouchableOpacity style={styles.btnSecondary} onPress={handleOpenSettings}>
-              <Text style={styles.btnTextDark}>{t('fe2.location.open_settings')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {permission === 'undetermined' && (
-          <View>
-            <View style={styles.statusRow}>
-              <View style={[styles.dot, { backgroundColor: colors.placeholder }]} />
-              <Text style={styles.statusText}>{t('fe2.location.undetermined')}</Text>
-            </View>
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleRetry}>
-              <Text style={styles.btnTextWhite}>{t('fe2.location.grant_permission')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          {/* === Quản lý bạn bè được chọn === */}
+          {isSharingActive && settings.sharingMode === 'selected_friends' && (
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.sectionTitle}>
+                  {t('fe2.location.selected_friends_section')}
+                </Text>
+                <Text style={styles.badgeCount}>
+                  {t('fe2.location.selected_count', { count: selectedFriends.length })}
+                </Text>
+              </View>
+              <Text style={styles.sublabel}>{t('fe2.location.selected_friends_desc')}</Text>
 
-      {/* === Bật / Tắt Chia sẻ Chính === */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('fe2.location.sharing_section')}</Text>
-        <View style={styles.row}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={styles.label}>{t('fe2.location.sharing_toggle_label')}</Text>
-            <Text style={styles.sublabel}>{t('fe2.location.sharing_toggle_sub')}</Text>
-          </View>
-          <Switch
-            value={isSharingActive}
-            onValueChange={handleMasterToggle}
-            disabled={permission !== 'granted'}
-            trackColor={{ false: colors.border, true: colors.primary }}
-          />
-        </View>
-      </View>
-
-      {/* === 4 Chế độ chia sẻ chuẩn Backend === */}
-      {isSharingActive && permission === 'granted' && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>{t('fe2.location.mode_section')}</Text>
-          {SHARING_MODES.map((item) => {
-            const IconComponent = item.icon;
-            const isSelected = settings.sharingMode === item.mode;
-            return (
               <TouchableOpacity
-                key={item.mode}
                 style={[
-                  styles.modeRow,
-                  isSelected && {
-                    backgroundColor: colors.surfaceAlt,
-                    borderRadius: 10,
-                    borderColor: colors.primary,
-                  },
+                  styles.manageBtn,
+                  { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                 ]}
-                onPress={() => handleModeSelect(item.mode)}
+                onPress={() => setFriendModalVisible(true)}
               >
-                <View
-                  style={[
-                    styles.radio,
-                    isSelected && {
-                      borderColor: colors.primary,
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                />
-                <View style={styles.modeIconWrapper}>
-                  <IconComponent
-                    size={18}
-                    color={isSelected ? colors.primary : colors.placeholder}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={[styles.label, isSelected && { color: colors.primary }]}>
-                    {t(item.titleKey as any)}
-                  </Text>
-                  <Text style={styles.sublabel}>{t(item.subKey as any)}</Text>
-                </View>
+                <Users size={16} color={colors.primary} />
+                <Text style={[styles.manageBtnText, { color: colors.primary }]}>
+                  {t('fe2.location.manage_selected_friends')}
+                </Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
 
-      {/* === Quản lý bạn bè được chọn (chỉ hiện khi mode = selected_friends) === */}
-      {isSharingActive && settings.sharingMode === 'selected_friends' && (
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.sectionTitle}>{t('fe2.location.selected_friends_section')}</Text>
-            <Text style={styles.badgeCount}>
-              {t('fe2.location.selected_count', { count: selectedFriends.length })}
-            </Text>
-          </View>
-          <Text style={styles.sublabel}>{t('fe2.location.selected_friends_desc')}</Text>
+              <View style={styles.friendsList}>
+                {selectedFriends.length === 0 ? (
+                  <Text style={styles.emptyNote}>{t('fe2.location.no_selected_friends')}</Text>
+                ) : (
+                  selectedFriends.map((friend) => (
+                    <View key={friend.id} style={styles.friendRow}>
+                      <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
+                      <Text style={styles.friendName}>{friend.displayName}</Text>
+                      <TouchableOpacity
+                        style={styles.removeFriendBtn}
+                        onPress={() => handleRemoveFriend(friend.id)}
+                      >
+                        <Trash2 size={16} color={colors.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
 
-          {/* Nút mở Modal quản lý bạn bè */}
-          <TouchableOpacity
-            style={[styles.manageBtn, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
-            onPress={() => setFriendModalVisible(true)}
-          >
-            <Users size={16} color={colors.primary} />
-            <Text style={[styles.manageBtnText, { color: colors.primary }]}>
-              {t('fe2.location.manage_selected_friends')}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Danh sách bạn bè đã chọn */}
-          <View style={styles.friendsList}>
-            {selectedFriends.length === 0 ? (
-              <Text style={styles.emptyNote}>{t('fe2.location.no_selected_friends')}</Text>
-            ) : (
-              selectedFriends.map((friend) => (
-                <View key={friend.id} style={styles.friendRow}>
-                  <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
-                  <Text style={styles.friendName}>{friend.displayName}</Text>
-                  <TouchableOpacity
-                    style={styles.removeFriendBtn}
-                    onPress={() => handleRemoveFriend(friend.id)}
-                  >
-                    <Trash2 size={16} color={colors.danger} />
-                  </TouchableOpacity>
+              {unselectedFriends.length > 0 && (
+                <View style={styles.addFriendsSection}>
+                  <Text style={styles.addSectionTitle}>{t('fe2.location.add_friend')}</Text>
+                  <View style={styles.unselectedChips}>
+                    {unselectedFriends.slice(0, 5).map((f) => (
+                      <TouchableOpacity
+                        key={f.id}
+                        style={styles.addChip}
+                        onPress={() => handleAddFriend(f.id)}
+                      >
+                        <Plus size={14} color={colors.primary} />
+                        <Text style={[styles.addChipText, { color: colors.primary }]}>
+                          {f.displayName}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              ))
-            )}
-          </View>
+              )}
 
-          {/* Danh sách bạn bè có thể thêm */}
-          {unselectedFriends.length > 0 && (
-            <View style={styles.addFriendsSection}>
-              <Text style={styles.addSectionTitle}>{t('fe2.location.add_friend')}</Text>
-              <View style={styles.unselectedChips}>
-                {unselectedFriends.map((f) => (
-                  <TouchableOpacity
-                    key={f.id}
-                    style={styles.addChip}
-                    onPress={() => handleAddFriend(f.id)}
-                  >
-                    <Plus size={14} color={colors.primary} />
-                    <Text style={[styles.addChipText, { color: colors.primary }]}>
-                      {f.displayName}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={styles.autoDowngradeHint}>
+                {t('fe2.location.auto_downgrade_note')}
+              </Text>
+            </View>
+          )}
+
+          {/* === Thời hạn chia sẻ === */}
+          {isSharingActive && settings.sharingMode !== 'off' && (
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Clock size={16} color={colors.text} />
+                  <Text style={styles.sectionTitle}>{t('fe2.location.expiry_section')}</Text>
+                </View>
+              </View>
+
+              <View style={styles.chipsRow}>
+                {EXPIRY_OPTIONS.map((opt) => {
+                  const isSelected = opt.hours === selectedExpiryHours;
+                  return (
+                    <TouchableOpacity
+                      key={opt.hours}
+                      style={[
+                        styles.expiryChip,
+                        isSelected && {
+                          backgroundColor: colors.primaryLight,
+                          borderColor: colors.primary,
+                        },
+                      ]}
+                      onPress={() => handleSelectExpiry(opt.hours)}
+                    >
+                      <Text
+                        style={[
+                          styles.expiryChipText,
+                          isSelected && { color: colors.primary, fontWeight: '700' },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
 
-          <Text style={styles.autoDowngradeHint}>
-            {t('fe2.location.auto_downgrade_note')}
-          </Text>
-        </View>
+          {/* === Độ chính xác vị trí: Approximate Location === */}
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Globe2 size={16} color={colors.text} />
+                  <Text style={styles.sectionTitle}>{t('fe2.location.approx_section')}</Text>
+                </View>
+                <Text style={[styles.label, { marginTop: 4 }]}>
+                  {t('fe2.location.approx_label')}
+                </Text>
+                <Text style={styles.sublabel}>{t('fe2.location.approx_sub')}</Text>
+              </View>
+              <Switch
+                value={settings.useApproximateLocation}
+                onValueChange={(val) => {
+                  setUseApproximateLocation(val);
+                  showSavedFeedback();
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+            {settings.useApproximateLocation && (
+              <View style={[styles.infoBanner, { backgroundColor: colors.primaryLight }]}>
+                <Shield size={14} color={colors.primary} />
+                <Text style={[styles.infoBannerText, { color: colors.primary }]}>
+                  {t('fe2.location.approx_badge')}
+                </Text>
+              </View>
+            )}
+          </View>
+        </>
       )}
 
-      {/* === Thời hạn chia sẻ (sharingExpiresAt) === */}
-      {isSharingActive && settings.sharingMode !== 'off' && (
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Clock size={16} color={colors.text} />
-              <Text style={styles.sectionTitle}>{t('fe2.location.expiry_section')}</Text>
-            </View>
-          </View>
-
-          <View style={styles.chipsRow}>
-            {EXPIRY_OPTIONS.map((opt) => {
-              const isSelected = opt.hours === selectedExpiryHours;
-              return (
-                <TouchableOpacity
-                  key={opt.hours}
-                  style={[
-                    styles.expiryChip,
-                    isSelected && {
-                      backgroundColor: colors.primaryLight,
-                      borderColor: colors.primary,
-                    },
-                  ]}
-                  onPress={() => handleSelectExpiry(opt.hours)}
-                >
-                  <Text
-                    style={[
-                      styles.expiryChipText,
-                      isSelected && { color: colors.primary, fontWeight: '700' },
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* === Độ chính xác vị trí: Approximate Location === */}
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Globe2 size={16} color={colors.text} />
-              <Text style={styles.sectionTitle}>{t('fe2.location.approx_section')}</Text>
-            </View>
-            <Text style={[styles.label, { marginTop: 4 }]}>
-              {t('fe2.location.approx_label')}
-            </Text>
-            <Text style={styles.sublabel}>{t('fe2.location.approx_sub')}</Text>
-          </View>
-          <Switch
-            value={settings.useApproximateLocation}
-            onValueChange={(val) => {
-              setUseApproximateLocation(val);
-              showSavedFeedback();
-            }}
-            trackColor={{ false: colors.border, true: colors.primary }}
-          />
-        </View>
-        {settings.useApproximateLocation && (
-          <View style={[styles.infoBanner, { backgroundColor: colors.primaryLight }]}>
-            <Shield size={14} color={colors.primary} />
-            <Text style={[styles.infoBannerText, { color: colors.primary }]}>
-              {t('fe2.location.approx_badge')}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* === Cảnh báo độ chính xác GPS thấp === */}
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.warningLight,
-            borderWidth: 1,
-            borderColor: colors.warning,
-          },
-        ]}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <AlertTriangle size={16} color={colors.warning} />
-          <Text style={[styles.sectionTitle, { color: colors.warning }]}>
-            {t('fe2.location.accuracy_warn_title')}
-          </Text>
-        </View>
-        <Text style={[styles.hint, { color: colors.warning }]}>
-          {t('fe2.location.accuracy_warn_body')}
-        </Text>
-      </View>
-
-      {/* Modal chọn bạn bè */}
+      {/* Modal chọn bạn bè (có Lazy Loading & Pull-to-Refresh) */}
       <FriendSelectionModal
         visible={friendModalVisible}
         onClose={() => setFriendModalVisible(false)}
@@ -539,8 +534,7 @@ export default function LocationSettingsScreen() {
 }
 
 const makeStyles = (
-  c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['colors'],
-  isDark: boolean
+  c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['colors']
 ) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
