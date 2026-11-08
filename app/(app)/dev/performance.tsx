@@ -1,29 +1,119 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { useTheme } from '@/hooks/useTheme';
 import { useMemo, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Switch,
+  RefreshControl,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { CheckCircle2 } from 'lucide-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { useSinglePress } from '@/hooks/useSinglePress';
+import { useRecommendationStore } from '@/store/useRecommendationStore';
+import { usePrivacyStore } from '@/store/usePrivacyStore';
+import { RecommendationScenarioModal } from '@/components/meetup/RecommendationScenarioModal';
+import { routes } from '@/constants/routes';
 
 export default function PerformanceScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [locationUpdates, setLocationUpdates] = useState(0);
-  const [renderCount, setRenderCount] = useState(1);
+  const [locationUpdates, setLocationUpdates] = useState(12);
+  const [renderCount, setRenderCount] = useState(4);
+  const [pauseBackgroundGps, setPauseBackgroundGps] = useState(true);
+  const [batchUpdates, setBatchUpdates] = useState(true);
+  const [resetToast, setResetToast] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [scenarioModalVisible, setScenarioModalVisible] = useState(false);
 
-  // Giả lập nhận location updates liên tục để test hiệu năng
+  const {
+    resetAllFiltersAndScenarios,
+    toggleStaleContextScenario,
+    toggleWeatherRelaxedScenario,
+    contextStatus,
+  } = useRecommendationStore();
+
+  const { setSharingMode, setUseApproximateLocation } = usePrivacyStore();
+
   useEffect(() => {
+    const intervalMs = batchUpdates ? 3000 : 1000;
     const interval = setInterval(() => {
       setLocationUpdates((prev) => prev + 1);
       setRenderCount((prev) => prev + 1);
-    }, 1000);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [batchUpdates]);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  }, 700);
+
+  // Kịch bản 1: Mở gợi ý địa điểm cho buổi hẹn 19:00
+  const handleScenario1 = useSinglePress(() => {
+    resetAllFiltersAndScenarios();
+    router.push(routes.meetupRecommendations('meetup-1'));
+  }, 500);
+
+  // Kịch bản 2: Xem thử đổi giờ hẹn & thời tiết mưa tại quán ngoài trời
+  const handleScenario2 = useSinglePress(() => {
+    resetAllFiltersAndScenarios();
+    if (contextStatus !== 'STALE_CONTEXT') {
+      toggleStaleContextScenario();
+    }
+    toggleWeatherRelaxedScenario();
+    router.push(routes.meetupRecommendations('meetup-1'));
+  }, 500);
+
+  // Kịch bản 3: Mở Bản đồ bạn bè (Chế độ vị trí xấp xỉ ~1.1km)
+  const handleScenario3 = useSinglePress(() => {
+    setSharingMode('friends');
+    setUseApproximateLocation(true);
+    router.push(routes.tabMap);
+  }, 500);
+
+  // Đặt lại toàn bộ dữ liệu mẫu về mặc định
+  const handleResetAll = useSinglePress(() => {
+    resetAllFiltersAndScenarios();
+    setSharingMode('friends');
+    setUseApproximateLocation(false);
+    setLocationUpdates(0);
+    setRenderCount(1);
+    setResetToast(true);
+    setTimeout(() => setResetToast(false), 2000);
+  }, 500);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+          progressBackgroundColor={colors.surface}
+        />
+      }
+    >
+      {resetToast && (
+        <View style={[styles.toast, { backgroundColor: colors.success }]}>
+          <CheckCircle2 size={16} color="#fff" />
+          <Text style={styles.toastText}>{t('fe2.dev_performance.reset_toast')}</Text>
+        </View>
+      )}
+
       <Text style={styles.title}>{t('fe2.dev_performance.screen_title')}</Text>
-      
+
+      {/* Metrics Card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('fe2.dev_performance.metrics_title')}</Text>
         <View style={styles.row}>
@@ -44,15 +134,84 @@ export default function PerformanceScreen() {
         </View>
       </View>
 
+      {/* Battery & Network Optimization Switches */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('fe2.dev_performance.opt_section')}</Text>
+        <View style={styles.switchRow}>
+          <Text style={[styles.label, { flex: 1, paddingRight: 8 }]}>
+            {t('fe2.dev_performance.opt_pause_bg')}
+          </Text>
+          <Switch
+            value={pauseBackgroundGps}
+            onValueChange={setPauseBackgroundGps}
+            trackColor={{ false: colors.border, true: colors.primary }}
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <Text style={[styles.label, { flex: 1, paddingRight: 8 }]}>
+            {t('fe2.dev_performance.opt_batch_30s')}
+          </Text>
+          <Switch
+            value={batchUpdates}
+            onValueChange={setBatchUpdates}
+            trackColor={{ false: colors.border, true: colors.primary }}
+          />
+        </View>
+      </View>
+
+      {/* Quick Walkthrough Scenarios */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('fe2.dev_performance.tools_title')}</Text>
-        <TouchableOpacity style={styles.button}>
+
+        <TouchableOpacity style={styles.button} onPress={handleScenario1}>
           <Text style={styles.buttonText}>{t('fe2.dev_performance.start_scenario_1')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.surfaceAlt, marginTop: 8 }]}>
-          <Text style={[styles.buttonText, { color: colors.text }]}>{t('fe2.dev_performance.reset_state')}</Text>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.purple }]}
+          onPress={handleScenario2}
+        >
+          <Text style={styles.buttonText}>{t('fe2.dev_performance.start_scenario_2')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.info }]}
+          onPress={handleScenario3}
+        >
+          <Text style={styles.buttonText}>{t('fe2.dev_performance.start_scenario_3')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.button,
+            {
+              backgroundColor: colors.purpleLight,
+              borderWidth: 1,
+              borderColor: colors.purple,
+            },
+          ]}
+          onPress={() => setScenarioModalVisible(true)}
+        >
+          <Text style={[styles.buttonText, { color: colors.purple }]}>
+            {t('fe2.recommendation.qol_modal_title')}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.surfaceAlt, marginTop: 4 }]}
+          onPress={handleResetAll}
+        >
+          <Text style={[styles.buttonText, { color: colors.text }]}>
+            {t('fe2.dev_performance.reset_state')}
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Scenario & Viewer Switcher Modal (Centralized in Dev Tools) */}
+      <RecommendationScenarioModal
+        visible={scenarioModalVisible}
+        onClose={() => setScenarioModalVisible(false)}
+      />
     </ScrollView>
   );
 }
@@ -60,13 +219,40 @@ export default function PerformanceScreen() {
 const makeStyles = (c: ReturnType<typeof useTheme>['colors']) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    content: { padding: 16, gap: 16 },
-    title: { fontSize: 20, fontWeight: 'bold', color: c.text, marginBottom: 8 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 16, gap: 8, elevation: 2 },
-    cardTitle: { fontSize: 16, fontWeight: 'bold', color: c.primary, marginBottom: 8 },
+    content: { padding: 16, gap: 16, paddingBottom: 36 },
+    toast: {
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    toastText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    title: { fontSize: 20, fontWeight: 'bold', color: c.text },
+    card: {
+      backgroundColor: c.surface,
+      borderRadius: 14,
+      padding: 16,
+      gap: 10,
+      elevation: 2,
+    },
+    cardTitle: { fontSize: 15, fontWeight: 'bold', color: c.primary, marginBottom: 4 },
     row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-    label: { fontSize: 14, color: c.text },
+    switchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 4,
+    },
+    label: { fontSize: 13, color: c.text, lineHeight: 19 },
     value: { fontSize: 14, fontWeight: 'bold', color: c.text },
-    button: { backgroundColor: c.primary, padding: 14, borderRadius: 8, alignItems: 'center' },
-    buttonText: { color: '#fff', fontWeight: 'bold' }
+    button: {
+      backgroundColor: c.primary,
+      paddingVertical: 13,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 13, textAlign: 'center' },
   });

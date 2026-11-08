@@ -1,11 +1,20 @@
-import { useMemo } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { useMemo, useState, useCallback } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  RefreshControl,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Radar, X, Coffee, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { Avatar } from '@/components/common/Avatar';
 import { Button } from '@/components/common/Button';
+import { FriendRowSkeleton } from '@/components/common/Skeleton';
 import { radius, spacing } from '@/theme';
 
 export interface NearbyFriendItem {
@@ -22,6 +31,8 @@ interface NearbyDetectedModalProps {
   onInviteMeetup: (friendId: string) => void;
 }
 
+const INITIAL_NEARBY_PAGE = 3;
+
 export function NearbyDetectedModal({
   visible,
   onClose,
@@ -30,6 +41,33 @@ export function NearbyDetectedModal({
 }: NearbyDetectedModalProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const [visibleCount, setVisibleCount] = useState(INITIAL_NEARBY_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const paginatedFriends = useMemo(
+    () => friends.slice(0, visibleCount),
+    [friends, visibleCount]
+  );
+
+  const hasMore = visibleCount < friends.length;
+
+  const handleLoadMore = useCallback(() => {
+    if (isLoadingMore || isRefreshing || !hasMore) return;
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((prev) => Math.min(prev + 2, friends.length));
+      setIsLoadingMore(false);
+    }, 500);
+  }, [friends.length, hasMore, isLoadingMore, isRefreshing]);
+
+  const handleRefresh = useSinglePress(() => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setVisibleCount(INITIAL_NEARBY_PAGE);
+      setIsRefreshing(false);
+    }, 600);
+  }, 700);
 
   const handleInvite = useSinglePress((id: string) => {
     onInviteMeetup(id);
@@ -49,7 +87,7 @@ export function NearbyDetectedModal({
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingBottom: spacing.xl,
-          maxHeight: '80%',
+          maxHeight: '82%',
         },
         header: {
           flexDirection: 'row',
@@ -104,6 +142,23 @@ export function NearbyDetectedModal({
           color: colors.purple,
           marginTop: 2,
         },
+        lazyFooter: {
+          paddingVertical: 8,
+        },
+        lazyFooterText: {
+          fontSize: 12,
+          color: colors.purple,
+          fontWeight: '600',
+          textAlign: 'center',
+          marginBottom: 4,
+        },
+        allLoadedText: {
+          fontSize: 11,
+          color: colors.placeholder,
+          textAlign: 'center',
+          paddingVertical: 6,
+          fontStyle: 'italic',
+        },
         privacyBox: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -145,11 +200,22 @@ export function NearbyDetectedModal({
 
           <Text style={styles.subtitle}>{t('fe2.nearby.detected_subtitle')}</Text>
 
-          {/* List of Detected Friends */}
+          {/* List of Detected Friends with Lazy Loading & Pull-to-Refresh */}
           <FlatList
-            data={friends}
+            data={paginatedFriends}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.purple]}
+                tintColor={colors.purple}
+                progressBackgroundColor={colors.surface}
+              />
+            }
             renderItem={({ item }) => (
               <View style={styles.friendCard}>
                 <Avatar name={item.name} uri={item.avatarUrl} size="md" />
@@ -168,6 +234,18 @@ export function NearbyDetectedModal({
                 />
               </View>
             )}
+            ListFooterComponent={
+              friends.length === 0 ? null : isLoadingMore ? (
+                <View style={styles.lazyFooter}>
+                  <Text style={styles.lazyFooterText}>
+                    {t('fe2.nearby.loading_more_nearby')}
+                  </Text>
+                  <FriendRowSkeleton />
+                </View>
+              ) : !hasMore ? (
+                <Text style={styles.allLoadedText}>{t('fe2.nearby.all_nearby_loaded')}</Text>
+              ) : null
+            }
           />
 
           {/* Privacy Note */}

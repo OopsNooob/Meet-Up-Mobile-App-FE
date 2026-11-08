@@ -6,6 +6,14 @@ export const MOCK_FRIENDS: SelectedFriend[] = [
   { id: 'u3', displayName: 'Bao Linh', avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop' },
   { id: 'u4', displayName: 'Minh Khoa', avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop' },
   { id: 'u5', displayName: 'Thu Ha', avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
+  { id: 'u6', displayName: 'Quoc Anh', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop' },
+  { id: 'u7', displayName: 'Phuong Thao', avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop' },
+  { id: 'u8', displayName: 'Gia Huy', avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop' },
+  { id: 'u9', displayName: 'Khanh Vy', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop' },
+  { id: 'u10', displayName: 'Tuan Kiet', avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop' },
+  { id: 'u11', displayName: 'Ngoc Mai', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop' },
+  { id: 'u12', displayName: 'Duc Thinh', avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100&h=100&fit=crop' },
+  { id: 'u13', displayName: 'Thao Nguyen', avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&h=100&fit=crop' },
 ];
 
 interface PrivacyStoreState {
@@ -40,12 +48,10 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
       let expiresAt = state.settings.sharingExpiresAt;
       let selectedIds = [...state.settings.selectedFriendIds];
 
-      // Theo BE aggregate invariant: 'off' bắt buộc expiry = null và selectedFriendIds = []
       if (mode === 'off') {
         expiresAt = null;
         selectedIds = [];
       } else if (mode === 'selected_friends' && selectedIds.length === 0) {
-        // Mặc định chọn 1 bạn bè nếu chuyển sang mode này để tránh invariant violation
         selectedIds = [state.availableFriends[0]?.id || 'u2'];
       }
 
@@ -122,7 +128,6 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
       const updated = state.settings.selectedFriendIds.filter((id) => id !== friendId);
       let mode = state.settings.sharingMode;
 
-      // Logic BE: aggregate tự động downgrade sang 'friends' nếu bỏ người cuối cùng trong mode selected_friends
       if (mode === 'selected_friends' && updated.length === 0) {
         mode = 'friends';
       }

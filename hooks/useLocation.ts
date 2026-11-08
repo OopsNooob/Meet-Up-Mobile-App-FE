@@ -1,5 +1,5 @@
 /**
- * FE-04 + FE-06 — Hook quản lý GPS permission và phát vị trí qua Socket
+ * FE-05 & FE-06 — Hook quản lý GPS permission và phát vị trí qua Socket
  * Đồng bộ với chính sách quyền riêng tư từ Backend (docs/11_location_privacy_api.md)
  */
 import { useState, useEffect, useRef } from 'react';
@@ -15,7 +15,7 @@ export type LocationState = {
   isApproximate?: boolean;
 };
 
-type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
+export type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
 const STALE_TTL_MS = 5 * 60 * 1000; // 5 phút
 
@@ -84,11 +84,10 @@ export function useLocation() {
       const sample = getEffectiveSample();
       setLocation(sample);
       emit('location:update', {
-        lat: sample.lat,
-        lng: sample.lng,
+        latitude: sample.lat,
+        longitude: sample.lng,
         accuracy: sample.accuracy,
-        timestamp: sample.updatedAt.toISOString(),
-        mode: settings.sharingMode,
+        recordedAt: sample.updatedAt.toISOString(),
       });
     };
 
@@ -108,5 +107,13 @@ export function useLocation() {
     }
   };
 
-  return { permission, location, isSharing, requestPermission, startSharing, stopSharing };
+  return {
+    permission,
+    setPermission,
+    location,
+    isSharing,
+    requestPermission,
+    startSharing,
+    stopSharing,
+  };
 }
