@@ -618,5 +618,39 @@
     "entertainment": "Giải trí",
     "quiet": "Yên tĩnh",
     "parking": "Đỗ xe rộng"
+  },
+  "friend": {
+    "search_placeholder": "Nhập tên hoặc email",
+    "search_hint": "Nhập ít nhất {{count}} ký tự để tìm bạn",
+    "search_empty_title": "Không tìm thấy người dùng",
+    "search_empty_description": "Thử tên hoặc email khác.",
+    "add": "Kết bạn",
+    "sent": "Đã gửi",
+    "cancel_request": "Hủy",
+    "accept": "Chấp nhận",
+    "reject": "Từ chối",
+    "is_friend": "Bạn bè",
+    "is_self": "Bạn",
+    "accepted_toast": "Bạn và {{name}} đã là bạn bè",
+    "find_friends": "Tìm bạn",
+    "requests": "Lời mời",
+    "requests_with_count": "Lời mời ({{count}})",
+    "list_empty_title": "Chưa có bạn bè",
+    "list_empty_description": "Tìm bạn bằng tên hoặc email để bắt đầu hẹn gặp.",
+    "incoming_tab": "Đã nhận ({{count}})",
+    "outgoing_tab": "Đã gửi ({{count}})",
+    "incoming_empty_title": "Không có lời mời nào đang chờ",
+    "outgoing_empty_title": "Bạn chưa gửi lời mời nào",
+    "unfriend": "Hủy kết bạn",
+    "unfriend_confirm_title": "Hủy kết bạn với {{name}}?",
+    "unfriend_confirm_message": "Hai bạn sẽ không còn trong danh sách bạn bè của nhau.",
+    "errors": {
+      "self_request": "Bạn không thể kết bạn với chính mình.",
+      "request_exists": "Lời mời đã được gửi trước đó. Danh sách đã được cập nhật.",
+      "already_friends": "Hai bạn đã là bạn bè.",
+      "request_not_found": "Lời mời không còn tồn tại.",
+      "target_locked": "Tài khoản này đã bị khóa, không thể kết bạn.",
+      "target_not_found": "Người dùng không tồn tại."
+    }
   }
 }

@@ -618,5 +618,39 @@
     "entertainment": "Entertainment",
     "quiet": "Quiet space",
     "parking": "Easy parking"
+  },
+  "friend": {
+    "search_placeholder": "Enter a name or email",
+    "search_hint": "Type at least {{count}} characters to search",
+    "search_empty_title": "No users found",
+    "search_empty_description": "Try another name or email.",
+    "add": "Add friend",
+    "sent": "Sent",
+    "cancel_request": "Cancel",
+    "accept": "Accept",
+    "reject": "Decline",
+    "is_friend": "Friends",
+    "is_self": "You",
+    "accepted_toast": "You and {{name}} are now friends",
+    "find_friends": "Find friends",
+    "requests": "Requests",
+    "requests_with_count": "Requests ({{count}})",
+    "list_empty_title": "No friends yet",
+    "list_empty_description": "Search by name or email to start meeting up.",
+    "incoming_tab": "Received ({{count}})",
+    "outgoing_tab": "Sent ({{count}})",
+    "incoming_empty_title": "No pending requests",
+    "outgoing_empty_title": "You haven't sent any requests",
+    "unfriend": "Unfriend",
+    "unfriend_confirm_title": "Unfriend {{name}}?",
+    "unfriend_confirm_message": "You will no longer be in each other's friend list.",
+    "errors": {
+      "self_request": "You can't add yourself as a friend.",
+      "request_exists": "A request was already sent. The list has been updated.",
+      "already_friends": "You are already friends.",
+      "request_not_found": "This request no longer exists.",
+      "target_locked": "This account is locked and cannot be added.",
+      "target_not_found": "User not found."
+    }
   }
 }

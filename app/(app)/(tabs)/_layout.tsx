@@ -2,11 +2,19 @@ import { Tabs } from 'expo-router/js-tabs';
 import { useTranslation } from 'react-i18next';
 import { Calendar, Map, User, Users } from 'lucide-react-native';
 import { LanguageToggle } from '@/components/common';
+import { useFriendRequestsSync, useIncomingRequestCount } from '@/hooks/useFriends';
 import { useTheme } from '@/hooks/useTheme';
+
+/** Badge quá dài làm vỡ tab bar */
+const MAX_BADGE_COUNT = 99;
 
 export default function TabLayout() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  // FE-03: badge số lời mời kết bạn đang chờ trên tab Bạn bè
+  useFriendRequestsSync();
+  const incomingCount = useIncomingRequestCount();
+  const friendsBadge = incomingCount > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : incomingCount || undefined;
 
   return (
     <Tabs
@@ -30,7 +38,12 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="friends"
-        options={{ title: t('tabs.friends'), tabBarIcon: ({ color, size }) => <Users color={color} size={size} /> }}
+        options={{
+          title: t('tabs.friends'),
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
+          tabBarBadge: friendsBadge,
+          tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.onPrimary },
+        }}
       />
       <Tabs.Screen
         name="profile"

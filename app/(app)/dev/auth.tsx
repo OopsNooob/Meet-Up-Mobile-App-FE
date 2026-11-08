@@ -5,11 +5,13 @@ import { useTheme } from '@/hooks/useTheme';
 import { API_BASE_URL, getRefreshCount, toApiError, USE_MOCK_API } from '@/services/apiClient';
 import { authService } from '@/services/authService';
 import { mockAuthDebug } from '@/services/mock/mockAuthServer';
+import { mockFriendDebug, type MockFriendFailure } from '@/services/mock/mockFriendServer';
 import { mockProfileDebug, type MockProfileFailure } from '@/services/mock/mockProfileServer';
 import { useAuth } from '@/store/useAuthStore';
 import { fontSize, spacing } from '@/theme';
 
 const PROFILE_FAILURE_CYCLE: MockProfileFailure[] = ['none', 'offline', 'server'];
+const FRIEND_FAILURE_CYCLE: MockFriendFailure[] = ['none', 'offline', 'server'];
 const PROFILE_FAILURE_LABELS: Record<MockProfileFailure, string> = {
   none: 'bình thường',
   offline: 'giả lập mất mạng',
@@ -23,6 +25,7 @@ export default function DevAuthScreen() {
   const { user } = useAuth();
   const [log, setLog] = useState<string[]>([]);
   const [profileFailure, setProfileFailure] = useState(mockProfileDebug.getFailure);
+  const [friendFailure, setFriendFailure] = useState(mockFriendDebug.getFailure);
 
   const append = (line: string) => setLog((prev) => [`${new Date().toLocaleTimeString()}  ${line}`, ...prev].slice(0, 20));
 
@@ -89,6 +92,46 @@ export default function DevAuthScreen() {
           setProfileFailure(next);
           append(`API hồ sơ → ${PROFILE_FAILURE_LABELS[next]}`);
         }}
+      />
+
+      <Button
+        label={`⑤ API bạn bè (FE-03): ${PROFILE_FAILURE_LABELS[friendFailure]}`}
+        variant="secondary"
+        fullWidth
+        disabled={!USE_MOCK_API}
+        onPress={() => {
+          const next = FRIEND_FAILURE_CYCLE[(FRIEND_FAILURE_CYCLE.indexOf(friendFailure) + 1) % FRIEND_FAILURE_CYCLE.length];
+          mockFriendDebug.setFailure(next);
+          setFriendFailure(next);
+          append(`API bạn bè → ${PROFILE_FAILURE_LABELS[next]}`);
+        }}
+      />
+      <Button
+        label="⑥ Người demo gửi lời mời kết bạn cho mình"
+        variant="secondary"
+        fullWidth
+        disabled={!USE_MOCK_API || !user}
+        onPress={() => {
+          const sender = user ? mockFriendDebug.simulateIncomingRequest(user.id) : null;
+          append(sender ? `${sender} đã gửi lời mời → badge cập nhật khi quay lại tab/tối đa 60s` : 'Hết người demo để gửi');
+        }}
+      />
+      <Button
+        label="⑦ Người demo rút lại lời mời đã gửi cho mình"
+        variant="secondary"
+        fullWidth
+        disabled={!USE_MOCK_API || !user}
+        onPress={() => {
+          const count = user ? mockFriendDebug.cancelIncomingRequests(user.id) : 0;
+          append(`Đã rút ${count} lời mời → bấm Chấp nhận trên màn cũ để thấy "Lời mời không còn tồn tại"`);
+        }}
+      />
+      <Button
+        label="⑧ Khóa/mở khóa tài khoản demo Nguyễn Đăng Khoa"
+        variant="secondary"
+        fullWidth
+        disabled={!USE_MOCK_API}
+        onPress={() => append(`Khoa → ${mockFriendDebug.toggleDemoLock() ? 'bị khóa' : 'mở khóa'}`)}
       />
 
       {log.map((line) => (
