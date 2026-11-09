@@ -1,5 +1,6 @@
 import { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import type { AuthResponseDto, TokensDto, UserDto } from '@/services/authService';
+import { handleFriendRequest, isMockFriendPath } from './mockFriendServer';
 import { handleProfileRequest, isMockProfilePath, loadMockProfiles } from './mockProfileServer';
 
 /**
@@ -181,7 +182,8 @@ export function createMockAdapter(fallback: AxiosAdapter): AxiosAdapter {
   return async (config) => {
     const path = (config.url ?? '').replace(/^https?:\/\/[^/]+/, '').replace(/^\/api\/v1/, '');
     const isProfile = isMockProfilePath(path);
-    if (!isProfile && (!path.startsWith('/auth/') || path.startsWith('/auth/privacy'))) return fallback(config);
+    const isFriend = isMockFriendPath(path);
+    if (!isProfile && !isFriend && (!path.startsWith('/auth/') || path.startsWith('/auth/privacy'))) return fallback(config);
 
     await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
     // Tên/avatar đã sửa ở FE-02 được lưu lại → /auth/me sau khi mở lại app vẫn trả dữ liệu mới
@@ -201,7 +203,17 @@ export function createMockAdapter(fallback: AxiosAdapter): AxiosAdapter {
       const method = (config.method ?? 'get').toLowerCase();
       const result = isProfile
         ? await handleProfileRequest(method, path, body, authenticate(config).user, config, fail)
-        : handle(method, path, body, config);
+        : isFriend
+          ? handleFriendRequest(
+              method,
+              path,
+              body,
+              authenticate(config).user,
+              [...accounts.values()].map((a) => ({ user: a.user, locked: a.lockedReason !== undefined })),
+              config,
+              fail,
+            )
+          : handle(method, path, body, config);
       if (!result) throw fail(404, 'NOT_FOUND');
       return toResponse(result.status, result.data);
     } catch (err) {

@@ -30,6 +30,8 @@ export type ApiError = AppError & {
   status?: number;
   /** Lý do khóa do admin nhập (chỉ có khi code = account_locked) */
   lockedReason?: string;
+  /** Mã lỗi nghiệp vụ gốc trong body (vd. FRIEND_REQUEST_EXISTS) để service từng domain tự chuẩn hóa */
+  serverCode?: string;
 };
 
 /** Mã lỗi nghiệp vụ backend → AppErrorCode. TODO BE-01: đối chiếu lại với mã thật của backend. */
@@ -59,7 +61,11 @@ export function toApiError(err: unknown): ApiError {
       return { code: err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' ? 'timeout' : 'network' };
     }
     // Không trả message thô từ server/axios (tiếng Anh, có thể lộ chi tiết) — UI dùng errors.<code>
-    return { code: toAppError(err).code, status };
+    return {
+      code: toAppError(err).code,
+      status,
+      ...(typeof body?.code === 'string' ? { serverCode: body.code } : {}),
+    };
   }
   if (err && typeof err === 'object' && 'code' in err) {
     const appError = toAppError(err);
