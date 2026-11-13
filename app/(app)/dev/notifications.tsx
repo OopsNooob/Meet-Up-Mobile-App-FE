@@ -48,9 +48,13 @@ export default function NotificationsTestScreen() {
     }, 600);
   }, 700);
 
-  const navigateByType = (type?: NotifType) => {
+  const navigateByType = useSinglePress((type?: NotifType) => {
     const targetMeetupId = 'meetup-1';
-    if (type === 'recommendation_ready' || type === 'meetup_finalized') {
+    if (
+      type === 'recommendation_ready' ||
+      type === 'meetup_finalized' ||
+      type === 'meetup.finalized'
+    ) {
       router.push(routes.meetupRecommendations(targetMeetupId));
     } else if (type === 'meetup_reminder') {
       router.push(routes.meetupChat(targetMeetupId));
@@ -59,7 +63,10 @@ export default function NotificationsTestScreen() {
     } else {
       router.push(routes.meetupDetail(targetMeetupId));
     }
-  };
+  }, 600);
+
+  const handleRegisterDevice = useSinglePress(() => setDeviceRegistered(true), 400);
+  const handleUnregisterDevice = useSinglePress(() => setDeviceRegistered(false), 400);
 
   const handleTest = useSinglePress((type: NotifType) => {
     scheduleMockNotification(type, 'meetup-1');
@@ -70,6 +77,10 @@ export default function NotificationsTestScreen() {
         body: t('fe2.dev_notifications.invite_body'),
       },
       meetup_finalized: {
+        title: t('fe2.dev_notifications.finalized_title'),
+        body: t('fe2.dev_notifications.finalized_body'),
+      },
+      'meetup.finalized': {
         title: t('fe2.dev_notifications.finalized_title'),
         body: t('fe2.dev_notifications.finalized_body'),
       },
@@ -159,7 +170,7 @@ export default function NotificationsTestScreen() {
                 styles.smallBtn,
                 { backgroundColor: colors.primaryLight, borderColor: colors.primary },
               ]}
-              onPress={() => setDeviceRegistered(true)}
+              onPress={handleRegisterDevice}
             >
               <RefreshCw size={13} color={colors.primary} />
               <Text style={[styles.smallBtnText, { color: colors.primary }]}>
@@ -175,7 +186,7 @@ export default function NotificationsTestScreen() {
                   styles.smallBtn,
                   { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
                 ]}
-                onPress={() => setDeviceRegistered(false)}
+                onPress={handleUnregisterDevice}
               >
                 <BellOff size={13} color={colors.subtext} />
                 <Text style={[styles.smallBtnText, { color: colors.subtext }]}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { useTranslation } from 'react-i18next';
 import { LocateFixed, ShieldCheck, Radar, RefreshCw } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -15,7 +16,7 @@ import type { LocationUpdatedPayload } from '@/hooks/useSocket';
 
 const MOCK_FRIENDS: Friend[] = [
   {
-    userId: 'u1',
+    userId: 'u2',
     name: 'Việt',
     lat: 10.7769,
     lng: 106.7009,
@@ -25,7 +26,7 @@ const MOCK_FRIENDS: Friend[] = [
     precision: 'precise',
   },
   {
-    userId: 'u2',
+    userId: 'u3',
     name: 'Minh',
     lat: 10.7795,
     lng: 106.6988,
@@ -35,7 +36,7 @@ const MOCK_FRIENDS: Friend[] = [
     precision: 'precise',
   },
   {
-    userId: 'u3',
+    userId: 'u4',
     name: 'Lan',
     lat: 10.77,
     lng: 106.7,
@@ -99,11 +100,28 @@ export default function FriendMapScreen() {
     setModalVisible(true);
   }, 400);
 
-  const handleCenterMyLocation = useSinglePress(() => {
+  const handleCenterMyLocation = useSinglePress(async () => {
+    let latitude = 10.7769;
+    let longitude = 106.7009;
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.granted) {
+        const pos =
+          (await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }).catch(() => null)) ?? (await Location.getLastKnownPositionAsync());
+        if (pos) {
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        }
+      }
+    } catch {
+      // Fallback to default region center
+    }
     mapRef.current?.animateToRegion(
       {
-        latitude: 10.7769,
-        longitude: 106.7009,
+        latitude,
+        longitude,
         latitudeDelta: 0.015,
         longitudeDelta: 0.015,
       },
@@ -136,9 +154,9 @@ export default function FriendMapScreen() {
     );
   }, 400);
 
-  const toggleSocketConnection = () => {
+  const toggleSocketConnection = useSinglePress(() => {
     setSocketStatus((prev) => (prev === 'connected' ? 'disconnected' : 'connected'));
-  };
+  }, 350);
 
   const STATUS_LABEL: Record<typeof socketStatus, string> = {
     connecting: t('fe2.map.socket_connecting'),

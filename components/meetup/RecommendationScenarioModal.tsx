@@ -11,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Sparkles, X, UserCheck, Activity } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useSinglePress } from '@/hooks/useSinglePress';
 import { Button } from '@/components/common/Button';
 import { radius, spacing } from '@/theme';
 import {
@@ -49,19 +50,23 @@ export function RecommendationScenarioModal({
 
   const isCurrentRunImpressed = impressedRunIds.includes(runId);
 
+  const handleClose = useSinglePress(onClose, 400);
+  const handleReset = useSinglePress(resetAllFiltersAndScenarios, 400);
+
   const formatActionLabel = (actionType: string) => {
     switch (actionType) {
       case 'RecommendationShown':
-        return 'Hiển thị danh sách gợi ý';
+        return t('fe2.recommendation.log_action_shown');
       case 'PlaceVoted':
+        return t('fe2.recommendation.log_action_vote');
       case 'VoteChanged':
-        return 'Bình chọn địa điểm';
+        return t('fe2.recommendation.log_action_vote_changed');
       case 'MeetupPlaceSelected':
-        return 'Chốt địa điểm hẹn';
+        return t('fe2.recommendation.log_action_finalized');
       case 'NavigationOpened':
-        return 'Mở chỉ đường bản đồ';
+        return t('fe2.recommendation.log_action_nav');
       case 'FavoriteAdded':
-        return 'Lưu địa điểm yêu thích';
+        return t('fe2.recommendation.log_action_favorite');
       default:
         return actionType;
     }
@@ -248,7 +253,7 @@ export function RecommendationScenarioModal({
                 {t('fe2.recommendation.qol_modal_title')}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
               <X size={20} color={colors.subtext} />
             </TouchableOpacity>
           </View>
@@ -406,12 +411,16 @@ export function RecommendationScenarioModal({
                             },
                           ]}
                         >
-                          {isRetry ? 'Chờ đồng bộ' : 'Đã lưu'}
+                          {isRetry
+                            ? t('fe2.recommendation.log_status_pending')
+                            : t('fe2.recommendation.log_status_saved')}
                         </Text>
                       </View>
                       <Text style={styles.logMeta}>
                         {actorName} • {log.timestamp}
-                        {log.rank ? ` • Vị trí #${log.rank}` : ''}
+                        {log.rank
+                          ? ` • ${t('fe2.recommendation.log_rank_prefix', { rank: log.rank })}`
+                          : ''}
                       </Text>
                     </View>
                   );
@@ -426,7 +435,7 @@ export function RecommendationScenarioModal({
                 label={t('fe2.recommendation.reset_filter')}
                 variant="secondary"
                 fullWidth
-                onPress={resetAllFiltersAndScenarios}
+                onPress={handleReset}
               />
             </View>
             <View style={styles.btnCol}>
@@ -434,7 +443,7 @@ export function RecommendationScenarioModal({
                 label={t('fe2.common.understood')}
                 variant="primary"
                 fullWidth
-                onPress={onClose}
+                onPress={handleClose}
               />
             </View>
           </View>

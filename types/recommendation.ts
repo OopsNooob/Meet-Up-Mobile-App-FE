@@ -36,25 +36,24 @@ export type RecommendationWarningCode =
 export interface PlaceOpeningInfo {
   /** Trạng thái mở cửa tại thời điểm truy vấn hiện tại */
   openNow: boolean | null;
-  /** Trạng thái mở cửa tại giờ hẹn (scheduledAt) — FE-23 */
+  /** Trạng thái mở cửa tại giờ hẹn (scheduledAt) */
   statusAtScheduled: ScheduledOpeningStatus;
   /** Nguồn dữ liệu giờ mở cửa từ Google Places */
   source: 'CURRENT' | 'REGULAR' | 'NONE';
   /** Cờ báo hiệu fallback về giờ mở thường lệ trong tuần */
   fallbackToRegularHours: boolean;
-  /** Trạng thái sắp đóng cửa sau giờ hẹn — FE-26 */
+  /** Trạng thái sắp đóng cửa sau giờ hẹn */
   closingStatus: ClosingStatus;
   /** Thời điểm đóng cửa tiếp theo sau giờ hẹn (ISO hoặc HH:mm) */
   nextClosingAt: string | null;
   /** Số giây còn lại từ giờ hẹn đến lúc quán đóng cửa */
   secondsUntilClose: number | null;
-  /** Khung giờ mở cửa hiển thị (song ngữ) */
-  hoursVi: string[];
-  hoursEn: string[];
+  /** Danh sách khóa ngôn ngữ (i18n keys) cho khung giờ mở cửa */
+  hoursKeys: string[];
 }
 
 export interface PlaceWeatherSummary {
-  /** Phân loại không gian địa điểm — FE-25 */
+  /** Phân loại không gian địa điểm */
   outdoorExposure: OutdoorExposure;
   /** Trạng thái dữ liệu thời tiết tại giờ hẹn */
   dataStatus: 'AVAILABLE' | 'UNAVAILABLE' | 'OUT_OF_RANGE';
@@ -85,7 +84,7 @@ export interface MatchedTagItem {
 }
 
 /**
- * Dữ liệu cá nhân hóa chỉ trả về cho riêng người đang xem (Viewer-aware Projection — FE-27 / BE-32).
+ * Dữ liệu cá nhân hóa chỉ trả về cho riêng người đang xem (Viewer-aware Projection).
  * Tuyệt đối không phơi bày dữ liệu này của thành viên khác.
  */
 export interface ViewerFeature {
@@ -121,8 +120,8 @@ export interface RecommendationExplanation {
   summaryCode: 'FAIR_PARETO_RANKED' | 'MIN_SUM_RANKED' | 'MIN_MAX_RANKED';
   facts: RecommendationExplanationFact[];
   warnings: RecommendationWarningCode[];
-  aiSummaryVi: string;
-  aiSummaryEn: string;
+  /** Khóa ngôn ngữ (i18n key) cho đoạn tóm tắt giải thích */
+  aiSummaryKey: string;
 }
 
 export interface RecommendationPlaceItem {
@@ -138,20 +137,22 @@ export interface RecommendationPlaceItem {
   scaleLabel: ScaleLabel;
   lat: number;
   lng: number;
-  /** Trung bình ETA của nhóm (giây) */
+  /** Trung bình thời gian di chuyển của nhóm (giây) */
   avgEtaSeconds: number;
-  /** ETA lâu nhất trong nhóm (giây) */
+  /** Thời gian di chuyển lâu nhất trong nhóm (giây) */
   maxEtaSeconds: number;
   etaRangeSeconds: number;
   paretoLevel: number;
   inclusionProbability: number | null;
+  /** Số phiếu bình chọn hiện tại của địa điểm trong lần gợi ý (BE-10) */
+  voteCount: number;
   opening: PlaceOpeningInfo;
   weather: PlaceWeatherSummary;
-  /** Danh sách ETA của từng thành viên (hiển thị công khai cho nhóm) */
+  /** Danh sách thời gian di chuyển của từng thành viên (hiển thị công khai cho nhóm) */
   memberEtas: MemberEtaItem[];
   /**
    * Bản đồ ViewerFeature theo từng thành viên trong Mock Store để khi chuyển đổi
-   * góc nhìn người xem (Viewer Switcher) thì UI chỉ trích xuất đúng `viewerFeaturesByMember[currentViewerId]`.
+   * góc nhìn người xem thì UI chỉ trích xuất đúng `viewerFeaturesByMember[currentViewerId]`.
    */
   viewerFeaturesByMember: Record<string, ViewerFeature>;
   explanation: RecommendationExplanation;
@@ -176,4 +177,3 @@ export interface FeedbackLogEntry {
   timestamp: string;
   status: 'RECORDED_OK' | 'SILENT_RETRY_QUEUED' | 'DEDUP_SKIPPED';
 }
-

@@ -18,7 +18,7 @@ import {
 } from '@/store/useRecommendationStore';
 
 export default function AiExplanationScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { placeId, placeName } = useLocalSearchParams<{
@@ -56,10 +56,7 @@ export default function AiExplanationScreen() {
     }, 600);
   }, 700);
 
-  const aiSummaryText =
-    i18n.language === 'vi'
-      ? place.explanation.aiSummaryVi
-      : place.explanation.aiSummaryEn;
+  const aiSummaryText = t(place.explanation.aiSummaryKey as any);
 
   const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
   const maxEtaMin = Math.round(place.maxEtaSeconds / 60);

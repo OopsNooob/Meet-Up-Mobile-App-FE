@@ -90,6 +90,10 @@ export default function PerformanceScreen() {
     setTimeout(() => setResetToast(false), 2000);
   }, 500);
 
+  const handleOpenScenarioModal = useSinglePress(() => {
+    setScenarioModalVisible(true);
+  }, 400);
+
   return (
     <ScrollView
       style={styles.container}
@@ -190,7 +194,7 @@ export default function PerformanceScreen() {
               borderColor: colors.purple,
             },
           ]}
-          onPress={() => setScenarioModalVisible(true)}
+          onPress={handleOpenScenarioModal}
         >
           <Text style={[styles.buttonText, { color: colors.purple }]}>
             {t('fe2.recommendation.qol_modal_title')}

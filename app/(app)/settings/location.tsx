@@ -29,11 +29,12 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 import { SharingMode } from '@/types/privacy';
 import { FriendSelectionModal } from '@/components/settings/FriendSelectionModal';
 import { LocationSettingsSkeleton } from '@/components/common/Skeleton';
+import { LanguageToggle } from '@/components/common/LanguageToggle';
 
 type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
 export default function LocationSettingsScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -151,10 +152,9 @@ export default function LocationSettingsScreen() {
     showSavedFeedback();
   }, 400);
 
-  const handleToggleLanguage = useSinglePress(() => {
-    const next = i18n.language === 'vi' ? 'en' : 'vi';
-    i18n.changeLanguage(next);
-  }, 500);
+  const handleOpenFriendModal = useSinglePress(() => {
+    setFriendModalVisible(true);
+  }, 400);
 
   const handleRefresh = useSinglePress(() => {
     setIsRefreshing(true);
@@ -247,18 +247,7 @@ export default function LocationSettingsScreen() {
                   <Text style={[styles.approxBadgeText, { color: colors.primary }]}>~1.1km</Text>
                 </View>
               )}
-              <TouchableOpacity
-                onPress={handleToggleLanguage}
-                style={[
-                  styles.langPill,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Globe2 size={12} color={colors.primary} />
-                <Text style={[styles.langPillText, { color: colors.text }]}>
-                  {i18n.language === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
-                </Text>
-              </TouchableOpacity>
+              <LanguageToggle />
             </View>
           </View>
 
@@ -391,7 +380,7 @@ export default function LocationSettingsScreen() {
                   styles.manageBtn,
                   { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                 ]}
-                onPress={() => setFriendModalVisible(true)}
+                onPress={handleOpenFriendModal}
               >
                 <Users size={16} color={colors.primary} />
                 <Text style={[styles.manageBtnText, { color: colors.primary }]}>
