@@ -1,8 +1,8 @@
 /**
  * FE-05 & FE-06 — Hook quản lý GPS permission và phát vị trí qua Socket
- * Đồng bộ với chính sách quyền riêng tư từ Backend (docs/11_location_privacy_api.md)
  */
 import { useState, useEffect, useRef } from 'react';
+import * as Location from 'expo-location';
 import { useSocket } from './useSocket';
 import { usePrivacyStore } from '../store/usePrivacyStore';
 
@@ -11,19 +11,17 @@ export type LocationState = {
   lng: number;
   accuracy: number;
   updatedAt: Date;
-  isStale: boolean; // true nếu > 5 phút
+  isStale: boolean;
   isApproximate?: boolean;
 };
 
 export type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
-const STALE_TTL_MS = 5 * 60 * 1000; // 5 phút
-
-// Mock vị trí Hồ Chí Minh để test UI
-const MOCK_LOCATION = { lat: 10.7769, lng: 106.7009, accuracy: 15 };
+const STALE_TTL_MS = 5 * 60 * 1000;
+const FALLBACK_LOCATION = { lat: 10.7769, lng: 106.7009, accuracy: 15 };
 
 export function useLocation() {
-  const [permission, setPermission] = useState<PermissionStatus>('granted');
+  const [permission, setPermission] = useState<PermissionStatus>('undetermined');
   const [location, setLocation] = useState<LocationState | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const { emit } = useSocket();
@@ -31,7 +29,17 @@ export function useLocation() {
 
   const { settings, isEffectiveSharingActive } = usePrivacyStore();
 
-  // Kiểm tra stale mỗi 30s
+  useEffect(() => {
+    Location.getForegroundPermissionsAsync()
+      .then((res) => {
+        if (res.granted) setPermission('granted');
+        else if (!res.canAskAgain) setPermission('blocked');
+        else if (res.status === 'denied') setPermission('denied');
+        else setPermission('undetermined');
+      })
+      .catch(() => setPermission('granted'));
+  }, []);
+
   useEffect(() => {
     const staleCheck = setInterval(() => {
       setLocation((prev) => {
@@ -44,44 +52,86 @@ export function useLocation() {
   }, []);
 
   const requestPermission = async () => {
-    setPermission('granted');
+    try {
+      const res = await Location.requestForegroundPermissionsAsync();
+      if (res.granted) {
+        setPermission('granted');
+        return true;
+      }
+      setPermission(res.canAskAgain ? 'denied' : 'blocked');
+      return false;
+    } catch {
+      setPermission('denied');
+      return false;
+    }
   };
 
-  const getEffectiveSample = (): LocationState => {
+  const fetchRealSample = async (): Promise<LocationState> => {
     const now = new Date();
+    let coords = FALLBACK_LOCATION;
+
+    try {
+      let pos: Location.LocationObject | null = null;
+      try {
+        pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      } catch {
+        pos = await Location.getLastKnownPositionAsync();
+      }
+      if (pos) {
+        coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy ?? 15,
+        };
+      }
+    } catch {
+      // Keep fallback coordinates when location services are disabled
+    }
+
     if (settings.useApproximateLocation) {
-      // Làm tròn 2 số thập phân (~1.1km) theo quy ước Backend S2
-      const approxLat = Math.round(MOCK_LOCATION.lat * 100) / 100;
-      const approxLng = Math.round(MOCK_LOCATION.lng * 100) / 100;
+      const approxLat = Math.round(coords.lat * 100) / 100;
+      const approxLng = Math.round(coords.lng * 100) / 100;
       return {
         lat: approxLat,
         lng: approxLng,
-        accuracy: Math.max(MOCK_LOCATION.accuracy, 1000),
+        accuracy: Math.max(coords.accuracy, 1000),
         updatedAt: now,
         isStale: false,
         isApproximate: true,
       };
     }
+
     return {
-      ...MOCK_LOCATION,
+      ...coords,
       updatedAt: now,
       isStale: false,
       isApproximate: false,
     };
   };
 
-  const startSharing = () => {
-    if (permission !== 'granted') return;
+  const stopSharing = () => {
+    setIsSharing(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const startSharing = async () => {
+    const granted = permission === 'granted' ? true : await requestPermission();
+    if (!granted) return;
     if (!isEffectiveSharingActive()) return;
 
     setIsSharing(true);
 
-    const publishLocation = () => {
+    const publishLocation = async () => {
       if (!isEffectiveSharingActive()) {
         stopSharing();
         return;
       }
-      const sample = getEffectiveSample();
+      const sample = await fetchRealSample();
       setLocation(sample);
       emit('location:update', {
         latitude: sample.lat,
@@ -91,20 +141,12 @@ export function useLocation() {
       });
     };
 
-    // Gửi ngay lập tức
-    publishLocation();
+    void publishLocation();
 
-    // Định kỳ 30s
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(publishLocation, 30_000);
-  };
-
-  const stopSharing = () => {
-    setIsSharing(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    intervalRef.current = setInterval(() => {
+      void publishLocation();
+    }, 30_000);
   };
 
   return {

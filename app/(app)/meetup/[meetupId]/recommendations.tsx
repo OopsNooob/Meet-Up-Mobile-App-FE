@@ -131,10 +131,22 @@ export default function RecommendationScreen() {
     [setMemberTravelMode, triggerFilterSkeleton]
   );
 
-  const handleRerun = useCallback(() => {
+  const handleRerun = useSinglePress(() => {
     rerunForUpdatedContext();
     triggerFilterSkeleton();
-  }, [rerunForUpdatedContext, triggerFilterSkeleton]);
+  }, 500);
+
+  const handleOpenChat = useSinglePress(() => {
+    router.push(routes.meetupChat(meetupId));
+  }, 600);
+
+  const handleOpenTravelModal = useSinglePress(() => {
+    setTravelModalVisible(true);
+  }, 400);
+
+  const handleOpenFilterModal = useSinglePress(() => {
+    setFilterModalVisible(true);
+  }, 400);
 
   const handleResetFilters = useCallback(() => {
     resetAllFiltersAndScenarios();
@@ -197,9 +209,13 @@ export default function RecommendationScreen() {
   }, [sortBy, t]);
 
   const openingFilterPillLabel = useMemo(() => {
-    if (openingFilter === 'OPEN_AT_SCHEDULED_TIME') return '🟢 Mở lúc hẹn (19:00)';
-    if (openingFilter === 'OPEN_AT_REQUEST_TIME') return t('fe2.recommendation.filter_open_now');
-    return 'Tất cả giờ mở';
+    if (openingFilter === 'OPEN_AT_SCHEDULED_TIME') {
+      return t('fe2.recommendation.filter_open_scheduled', { time: '19:00' });
+    }
+    if (openingFilter === 'OPEN_AT_REQUEST_TIME') {
+      return t('fe2.recommendation.filter_open_now');
+    }
+    return t('fe2.recommendation.filter_open_any');
   }, [openingFilter, t]);
 
   return (
@@ -208,7 +224,7 @@ export default function RecommendationScreen() {
         options={{
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => router.push(routes.meetupChat(meetupId))}
+              onPress={handleOpenChat}
               style={{ padding: 6, marginRight: 4 }}
               accessibilityLabel={t('fe2.chat.screen_title')}
             >
@@ -242,7 +258,7 @@ export default function RecommendationScreen() {
 
         <TouchableOpacity
           style={[styles.travelBtn, { borderColor: colors.primary }]}
-          onPress={() => setTravelModalVisible(true)}
+          onPress={handleOpenTravelModal}
         >
           <Navigation size={13} color={colors.primary} />
           <Text style={[styles.travelBtnText, { color: colors.primary }]}>
@@ -357,7 +373,7 @@ export default function RecommendationScreen() {
 
         <TouchableOpacity
           style={styles.filterSortTrigger}
-          onPress={() => setFilterModalVisible(true)}
+          onPress={handleOpenFilterModal}
         >
           <SlidersHorizontal size={15} color={colors.primary} />
           <Text style={styles.filterSortTriggerText}>

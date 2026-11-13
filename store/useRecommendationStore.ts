@@ -49,6 +49,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 600,
     paretoLevel: 1,
     inclusionProbability: 0.94,
+    voteCount: 2,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -57,8 +58,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '22:30',
       secondsUntilClose: 12600, // 3h30p sau giờ hẹn 19:00
-      hoursVi: ['Thứ 2–6: 07:00 – 22:30', 'Thứ 7–CN: 07:00 – 23:00'],
-      hoursEn: ['Mon–Fri: 07:00 AM – 10:30 PM', 'Sat–Sun: 07:00 AM – 11:00 PM'],
+      hoursKeys: ['fe2.recommendation_data.p1_hours_1', 'fe2.recommendation_data.p1_hours_2'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -150,13 +150,9 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
         { key: 'maxEtaSeconds', value: 1080, unit: 'SECOND', source: 'ROUTES' },
         { key: 'scheduledOpeningStatus', value: 'OPEN', source: 'PLACES' },
         { key: 'paretoLevel', value: 1, unit: 'COUNT', source: 'ENGINE' },
-        { key: 'inclusionProbability', value: 0.94, unit: 'PROBABILITY_0_1', source: 'ENGINE' },
       ],
       warnings: [],
-      aiSummaryVi:
-        'Địa điểm có thời gian di chuyển đồng đều và thuận tiện nhất cho cả nhóm vào giờ hẹn (trung bình 12 phút, xa nhất 18 phút), không gian trong nhà thoải mái và mở cửa đến 22:30.',
-      aiSummaryEn:
-        'Offers the most balanced and convenient travel time for the whole group at the meeting time (12 min average, 18 min max), comfortable indoor seating, and stays open until 22:30.',
+      aiSummaryKey: 'fe2.recommendation_data.p1_summary',
     },
   },
   {
@@ -177,6 +173,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 660,
     paretoLevel: 1,
     inclusionProbability: 0.82,
+    voteCount: 1,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -185,8 +182,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'CLOSING_SOON',
       nextClosingAt: '19:45',
       secondsUntilClose: 2700, // Chỉ còn 45 phút sau giờ hẹn 19:00 -> FE-26 CLOSING_SOON!
-      hoursVi: ['Thứ 2–CN: 07:00 – 19:45 (Đóng sớm bảo trì định kỳ)'],
-      hoursEn: ['Mon–Sun: 07:00 AM – 07:45 PM (Early closing schedule)'],
+      hoursKeys: ['fe2.recommendation_data.p2_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -274,10 +270,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
         { key: 'secondsUntilClose', value: 2700, unit: 'SECOND', source: 'PLACES' },
       ],
       warnings: ['CLOSING_SOON_AT_MEETUP_TIME'],
-      aiSummaryVi:
-        'Vị trí trung tâm thuận tiện và hợp sở thích trà/cà phê của nhóm, nhưng lưu ý quán sẽ đóng cửa lúc 19:45 (chỉ còn khoảng 45 phút sau giờ hẹn 19:00).',
-      aiSummaryEn:
-        'Convenient central location matching tea/coffee preferences, though please note it closes at 19:45 (only about 45 minutes after the 19:00 meeting time).',
+      aiSummaryKey: 'fe2.recommendation_data.p2_summary',
     },
   },
   {
@@ -298,6 +291,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 1140,
     paretoLevel: 2,
     inclusionProbability: 0.68,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -306,8 +300,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '23:00',
       secondsUntilClose: 14400,
-      hoursVi: ['Thứ 2–CN: 08:00 – 23:00 (Theo giờ mở thường lệ)'],
-      hoursEn: ['Mon–Sun: 08:00 AM – 11:00 PM (From regular weekly hours)'],
+      hoursKeys: ['fe2.recommendation_data.p3_hours_1'],
     },
     weather: {
       outdoorExposure: 'OUTDOOR',
@@ -399,10 +392,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
         { key: 'precipitationProbabilityPct', value: 80, unit: 'COUNT', source: 'WEATHER' },
       ],
       warnings: ['OPENING_FROM_REGULAR_HOURS', 'BAD_WEATHER_OUTDOOR'],
-      aiSummaryVi:
-        'Không gian sân vườn thoáng đãng và được đánh giá cao (4.6⭐), tuy nhiên dự báo vào giờ hẹn có khả năng mưa lớn (80%) nên cần cân nhắc vì quán ở ngoài trời.',
-      aiSummaryEn:
-        'Highly rated rooftop garden (4.6⭐), but the forecast at the meeting time shows an 80% chance of rain for this outdoor space.',
+      aiSummaryKey: 'fe2.recommendation_data.p3_summary',
     },
   },
   {
@@ -423,6 +413,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 900,
     paretoLevel: 2,
     inclusionProbability: 0.54,
+    voteCount: 0,
     opening: {
       openNow: null,
       statusAtScheduled: 'UNKNOWN',
@@ -431,8 +422,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'UNKNOWN',
       nextClosingAt: null,
       secondsUntilClose: null,
-      hoursVi: [],
-      hoursEn: [],
+      hoursKeys: [],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -519,10 +509,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
         { key: 'scheduledOpeningStatus', value: 'UNKNOWN', source: 'PLACES' },
       ],
       warnings: ['OPENING_STATUS_UNKNOWN'],
-      aiSummaryVi:
-        'Không gian trong nhà quen thuộc và dễ tìm, tuy nhiên chi nhánh này hiện chưa cập nhật lịch mở cửa chi tiết trên bản đồ nên bạn hãy kiểm tra trước khi ghé.',
-      aiSummaryEn:
-        'Familiar indoor spot in a central area, though opening hours are not yet verified on the map—please double-check before visiting.',
+      aiSummaryKey: 'fe2.recommendation_data.p4_summary',
     },
   },
   {
@@ -543,6 +530,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 900,
     paretoLevel: 3,
     inclusionProbability: 0.41,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'CLOSED',
@@ -551,8 +539,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: null,
       secondsUntilClose: null,
-      hoursVi: ['Thứ 2–CN: 06:30 – 18:30 (Đã đóng vào giờ hẹn 19:00)'],
-      hoursEn: ['Mon–Sun: 06:30 AM – 06:30 PM (Closed at 19:00 meeting time)'],
+      hoursKeys: ['fe2.recommendation_data.p5_hours_1'],
     },
     weather: {
       outdoorExposure: 'OUTDOOR',
@@ -640,10 +627,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
         { key: 'scheduledOpeningStatus', value: 'CLOSED', source: 'PLACES' },
       ],
       warnings: ['BAD_WEATHER_OUTDOOR'],
-      aiSummaryVi:
-        'Đang mở cửa ở hiện tại nhưng sẽ đóng cửa lúc 18:30 (trước giờ hẹn 19:00 của nhóm). Chỉ hiển thị khi chọn chế độ lọc Tất cả hoặc Đang mở lúc tìm.',
-      aiSummaryEn:
-        'Currently open right now, but closes at 18:30 (before the group scheduled meeting time at 19:00). Only shown when filter is ANY or OPEN_AT_REQUEST_TIME.',
+      aiSummaryKey: 'fe2.recommendation_data.p5_summary',
     },
   },
   {
@@ -664,6 +648,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 720,
     paretoLevel: 2,
     inclusionProbability: 0.76,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -672,8 +657,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '23:30',
       secondsUntilClose: 16200,
-      hoursVi: ['Thứ 2–CN: 07:00 – 23:30'],
-      hoursEn: ['Mon–Sun: 07:00 AM – 11:30 PM'],
+      hoursKeys: ['fe2.recommendation_data.p6_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -698,8 +682,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       summaryCode: 'FAIR_PARETO_RANKED',
       facts: [],
       warnings: [],
-      aiSummaryVi: 'Không gian rộng rãi nhiều tầng ngay phố Đồng Khởi, mở cửa muộn đến 23:30 và có khu vực ngồi trong nhà ấm cúng khi trời mưa.',
-      aiSummaryEn: 'Spacious multi-floor cafe on Dong Khoi street, open late until 23:30 with cozy indoor seating.',
+      aiSummaryKey: 'fe2.recommendation_data.p6_summary',
     },
   },
   {
@@ -720,6 +703,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 600,
     paretoLevel: 1,
     inclusionProbability: 0.89,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -728,8 +712,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '22:00',
       secondsUntilClose: 10800,
-      hoursVi: ['Thứ 2–CN: 10:00 – 22:00'],
-      hoursEn: ['Mon–Sun: 10:00 AM – 10:00 PM'],
+      hoursKeys: ['fe2.recommendation_data.p7_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -754,8 +737,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       summaryCode: 'FAIR_PARETO_RANKED',
       facts: [],
       warnings: [],
-      aiSummaryVi: 'Điểm đánh giá cộng đồng rất cao (4.8⭐), thời gian di chuyển trung bình chỉ 14 phút và cực kỳ phù hợp cho buổi hẹn ăn tối kết hợp trò chuyện.',
-      aiSummaryEn: 'Top-rated dining venue (4.8⭐) with a 14-minute average travel time, ideal for an evening dinner meetup.',
+      aiSummaryKey: 'fe2.recommendation_data.p7_summary',
     },
   },
   {
@@ -776,6 +758,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 720,
     paretoLevel: 2,
     inclusionProbability: 0.65,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -784,8 +767,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '22:00',
       secondsUntilClose: 10800,
-      hoursVi: ['Thứ 2–CN: 08:00 – 22:00'],
-      hoursEn: ['Mon–Sun: 08:00 AM – 10:00 PM'],
+      hoursKeys: ['fe2.recommendation_data.p8_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -810,8 +792,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       summaryCode: 'FAIR_PARETO_RANKED',
       facts: [],
       warnings: [],
-      aiSummaryVi: 'Nằm bên trong trung tâm thương mại có hầm gửi xe máy và ô tô rộng rãi, không lo ảnh hưởng bởi thời tiết mưa.',
-      aiSummaryEn: 'Located inside a shopping mall with convenient underground parking for both motorbikes and cars.',
+      aiSummaryKey: 'fe2.recommendation_data.p8_summary',
     },
   },
   {
@@ -832,6 +813,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 780,
     paretoLevel: 2,
     inclusionProbability: 0.58,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -840,8 +822,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '23:00',
       secondsUntilClose: 14400,
-      hoursVi: ['Thứ 2–CN: 08:30 – 23:00'],
-      hoursEn: ['Mon–Sun: 08:30 AM – 11:00 PM'],
+      hoursKeys: ['fe2.recommendation_data.p9_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -866,8 +847,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       summaryCode: 'FAIR_PARETO_RANKED',
       facts: [],
       warnings: [],
-      aiSummaryVi: 'Tọa lạc tại chung cư 42 Nguyễn Huệ với tầm nhìn đẹp xuống phố đi bộ và nhạc acoustic nhẹ nhàng vào buổi tối.',
-      aiSummaryEn: 'Located in the iconic 42 Nguyen Hue apartment building with a view of the walking street.',
+      aiSummaryKey: 'fe2.recommendation_data.p9_summary',
     },
   },
   {
@@ -888,6 +868,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
     etaRangeSeconds: 840,
     paretoLevel: 3,
     inclusionProbability: 0.52,
+    voteCount: 0,
     opening: {
       openNow: true,
       statusAtScheduled: 'OPEN',
@@ -896,8 +877,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       closingStatus: 'OK',
       nextClosingAt: '23:45',
       secondsUntilClose: 17100,
-      hoursVi: ['Thứ 2–CN: 09:00 – 23:45'],
-      hoursEn: ['Mon–Sun: 09:00 AM – 11:45 PM'],
+      hoursKeys: ['fe2.recommendation_data.p10_hours_1'],
     },
     weather: {
       outdoorExposure: 'INDOOR',
@@ -922,8 +902,7 @@ const INITIAL_PLACES: RecommendationPlaceItem[] = [
       summaryCode: 'FAIR_PARETO_RANKED',
       facts: [],
       warnings: [],
-      aiSummaryVi: 'Tổ hợp giải trí, xem phim và ẩm thực trong trung tâm thương mại Vincom, mở cửa muộn đến 23:45.',
-      aiSummaryEn: 'All-in-one cinema, dining, and entertainment lounge inside Vincom Center, open late until 23:45.',
+      aiSummaryKey: 'fe2.recommendation_data.p10_summary',
     },
   },
 ];
@@ -1084,6 +1063,7 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
         contextStatus: 'CURRENT_CONTEXT',
         votedCandidateKey: null,
         finalizedCandidateKey: null,
+        basePlaces: INITIAL_PLACES,
       };
     }),
 
@@ -1097,6 +1077,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       currentMeetupScheduledAt: '2026-11-05T19:00:00+07:00',
       scheduledAtSnapshot: '2026-11-05T19:00:00+07:00',
       effectiveRoutingPreference: 'TRAFFIC_AWARE',
+      votedCandidateKey: null,
+      finalizedCandidateKey: null,
+      basePlaces: INITIAL_PLACES,
       memberTravelModes: {
         u1: 'TWO_WHEELER',
         u2: 'TWO_WHEELER',
@@ -1154,8 +1137,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       return false;
     }
 
-    const hadPreviousVote = state.votedCandidateKey !== null;
-    const isUnvoting = state.votedCandidateKey === canonicalCandidateKey;
+    const previousVoteKey = state.votedCandidateKey;
+    const hadPreviousVote = previousVoteKey !== null;
+    const isUnvoting = previousVoteKey === canonicalCandidateKey;
     const nextVote = isUnvoting ? null : canonicalCandidateKey;
 
     const actionType: Exclude<FeedbackActionType, 'RecommendationShown'> = hadPreviousVote
@@ -1164,9 +1148,21 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
 
     get().recordFeedbackEvent(actionType, canonicalCandidateKey, rank);
 
-    // FE-27: Đồng bộ lại trên CÙNG runId (không tạo runId mới, không thay đổi thứ hạng)
+    const updatedBasePlaces = state.basePlaces.map((p) => {
+      let nextCount = p.voteCount;
+      if (previousVoteKey && p.canonicalCandidateKey === previousVoteKey) {
+        nextCount = Math.max(0, nextCount - 1);
+      }
+      if (nextVote && p.canonicalCandidateKey === nextVote) {
+        nextCount = nextCount + 1;
+      }
+      return nextCount === p.voteCount ? p : { ...p, voteCount: nextCount };
+    });
+
+    // FE-27 & BE-10: Đồng bộ lại trên CÙNG runId (mỗi người tối đa 1 vote, đổi vote cập nhật voteCount)
     set({
       votedCandidateKey: nextVote,
+      basePlaces: updatedBasePlaces,
       lastSyncedRunId: state.runId,
     });
     return true;
@@ -1180,10 +1176,30 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
 
     get().recordFeedbackEvent('MeetupPlaceSelected', canonicalCandidateKey, rank);
 
+    const previousVoteKey = state.votedCandidateKey;
+    const updatedBasePlaces = state.basePlaces.map((p) => {
+      let nextCount = p.voteCount;
+      if (
+        previousVoteKey &&
+        previousVoteKey !== canonicalCandidateKey &&
+        p.canonicalCandidateKey === previousVoteKey
+      ) {
+        nextCount = Math.max(0, nextCount - 1);
+      }
+      if (
+        previousVoteKey !== canonicalCandidateKey &&
+        p.canonicalCandidateKey === canonicalCandidateKey
+      ) {
+        nextCount = nextCount + 1;
+      }
+      return nextCount === p.voteCount ? p : { ...p, voteCount: nextCount };
+    });
+
     // FE-27: Sau khi chốt, đọc lại trên đúng runId đã chốt
     set({
       finalizedCandidateKey: canonicalCandidateKey,
       votedCandidateKey: canonicalCandidateKey,
+      basePlaces: updatedBasePlaces,
       lastSyncedRunId: state.runId,
     });
     return true;

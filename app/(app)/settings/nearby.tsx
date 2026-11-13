@@ -112,6 +112,7 @@ export default function NearbyScreen() {
   }, 300);
 
   const handleCreateMeetup = useSinglePress(() => router.push(routes.meetupCreate), 600);
+  const handleOpenDetectedModal = useSinglePress(() => setModalVisible(true), 400);
 
   const handleOptInToggle = (value: boolean) => {
     if (!value) {
@@ -261,7 +262,7 @@ export default function NearbyScreen() {
               </Text>
               <TouchableOpacity
                 style={[styles.createBtn, { backgroundColor: colors.success }]}
-                onPress={() => setModalVisible(true)}
+                onPress={handleOpenDetectedModal}
               >
                 <Text style={styles.createBtnText}>{t('fe2.nearby.create_meetup')}</Text>
               </TouchableOpacity>

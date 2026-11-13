@@ -32,7 +32,7 @@ import {
 } from '@/store/useRecommendationStore';
 
 export default function PlaceDetailScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
@@ -158,10 +158,19 @@ export default function PlaceDetailScreen() {
     toggleVotePlace(place.canonicalCandidateKey, place.rank);
   }, 350);
 
-  const handleConfirmFinalize = () => {
+  const handleOpenExplanation = useSinglePress(() => {
+    router.push(routes.placeExplanation(place.placeId, place.name));
+  }, 600);
+
+  const handleOpenFinalizeDialog = useSinglePress(() => {
+    if (isStale || isFinalized) return;
+    setFinalizeDialogVisible(true);
+  }, 500);
+
+  const handleConfirmFinalize = useSinglePress(() => {
     setFinalizeDialogVisible(false);
     finalizePlace(place.canonicalCandidateKey, place.rank);
-  };
+  }, 500);
 
   const handleFavorite = useSinglePress(() => {
     toggleFavoritePlace(place.canonicalCandidateKey, place.rank);
@@ -177,8 +186,10 @@ export default function PlaceDetailScreen() {
     });
   }, 800);
 
-  const openingHours =
-    i18n.language === 'vi' ? place.opening.hoursVi : place.opening.hoursEn;
+  const openingHours = useMemo(
+    () => place.opening.hoursKeys.map((key) => t(key as any)),
+    [place.opening.hoursKeys, t]
+  );
   const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
   const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
   const closingMins =
@@ -543,12 +554,12 @@ export default function PlaceDetailScreen() {
               return (
                 <View key={m.participantId} style={styles.memberRow}>
                   <Text style={styles.memberName}>
-                    {modeIcon} {m.name === 'Bạn' ? t('fe2.common.you') : m.name} ({modeLabel})
+                    {modeIcon} {m.name === 'Bạn' ? t('fe2.common.you') : m.name} • {modeLabel}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {deltaMin > 0 && (
                       <Text style={{ fontSize: 11, color: colors.warning, fontWeight: '600' }}>
-                        ({t('fe2.recommendation.traffic_delta', { mins: deltaMin })})
+                        {t('fe2.recommendation.traffic_delta', { mins: deltaMin })}
                       </Text>
                     )}
                     <Text style={[styles.memberEta, { color: colors.primary }]}>
@@ -659,7 +670,7 @@ export default function PlaceDetailScreen() {
                 styles.actionBtn,
                 { backgroundColor: colors.purpleLight, borderColor: colors.purple },
               ]}
-              onPress={() => router.push(routes.placeExplanation(place.placeId, place.name))}
+              onPress={handleOpenExplanation}
             >
               <Sparkles size={18} color={colors.purple} />
               <Text style={[styles.actionBtnText, { color: colors.purple }]}>
@@ -691,7 +702,8 @@ export default function PlaceDetailScreen() {
               >
                 {isVoted
                   ? t('fe2.place_detail.voted_this_place')
-                  : t('fe2.place_detail.vote_this_place')}
+                  : t('fe2.place_detail.vote_this_place')}{' '}
+                • {t('fe2.recommendation.vote_count_badge', { count: place.voteCount })}
               </Text>
             </TouchableOpacity>
 
@@ -704,7 +716,7 @@ export default function PlaceDetailScreen() {
                   : { backgroundColor: colors.infoLight, borderColor: colors.info },
                 isStale && { opacity: 0.55 },
               ]}
-              onPress={() => setFinalizeDialogVisible(true)}
+              onPress={handleOpenFinalizeDialog}
             >
               <MapPinCheck size={18} color={isFinalized ? colors.success : colors.info} />
               <Text

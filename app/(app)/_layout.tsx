@@ -31,6 +31,7 @@ export default function AppLayout() {
       <Stack.Screen name="meetup/[meetupId]/recommendations" options={{ title: t('fe2.recommendation.screen_title') }} />
       <Stack.Screen name="meetup/[meetupId]/vote" options={{ title: t('screens.meetup_vote') }} />
       <Stack.Screen name="meetup/[meetupId]/chat" options={{ title: t('fe2.chat.screen_title') }} />
+      <Stack.Screen name="chat/[peerId]" options={{ title: t('fe2.direct_chat.screen_title') }} />
 
       <Stack.Screen name="friend/search" options={{ title: t('screens.friend_search') }} />
       <Stack.Screen name="friend/requests" options={{ title: t('screens.friend_requests') }} />

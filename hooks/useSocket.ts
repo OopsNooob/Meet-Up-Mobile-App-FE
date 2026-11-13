@@ -10,13 +10,16 @@ import { onLogout, useAuthStore } from '../store/useAuthStore';
 
 const SOCKET_URL = 'http://10.0.2.2:3000'; // Android Emulator → localhost
 
-type SocketEvent =
+export type SocketEvent =
   | 'LocationUpdated'
   | 'MeetupMemberChanged'
+  | 'MeetupInviteLinkAccepted'
   | 'PreferenceUpdated'
   | 'RecommendationReady'
   | 'VoteUpdated'
-  | 'MeetupFinalized';
+  | 'MeetupFinalized'
+  | 'meetup:chat-message'
+  | 'direct:chat-message';
 
 export type LocationUpdatedPayload = {
   userId: string;
@@ -27,6 +30,7 @@ export type LocationUpdatedPayload = {
 };
 
 let globalSocket: Socket | null = null;
+const processedEventIds = new Set<string>();
 
 export function useSocket() {
   const token = useAuthStore((s) => s.accessToken);
@@ -70,14 +74,30 @@ export function useSocket() {
     if (!globalSocket) return;
 
     const key = event;
-    // Xóa listener cũ nếu có
     const oldHandler = listenerMapRef.current.get(key);
     if (oldHandler) {
       globalSocket.off(event, oldHandler);
     }
 
-    globalSocket.on(event, handler as any);
-    listenerMapRef.current.set(key, handler as any);
+    const wrappedHandler = (data: T) => {
+      const maybeObj = data as Record<string, unknown> | null;
+      const eventId =
+        (typeof maybeObj?.eventId === 'string' && maybeObj.eventId) ||
+        (typeof maybeObj?.id === 'string' && maybeObj.id) ||
+        null;
+      if (eventId) {
+        if (processedEventIds.has(eventId)) return;
+        processedEventIds.add(eventId);
+        if (processedEventIds.size > 300) {
+          const oldest = processedEventIds.values().next().value;
+          if (oldest) processedEventIds.delete(oldest);
+        }
+      }
+      handler(data);
+    };
+
+    globalSocket.on(event, wrappedHandler as any);
+    listenerMapRef.current.set(key, wrappedHandler as any);
   }, []);
 
   const off = useCallback((event: SocketEvent) => {

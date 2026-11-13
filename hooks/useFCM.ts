@@ -12,6 +12,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/useAuthStore';
 import { routes } from '@/constants/routes';
+import i18n from '@/locales/i18n';
 
 // Web và Expo Go Android (SDK 53+) không hỗ trợ expo-notifications — import là lỗi
 export const isNotificationsSupported =
@@ -42,6 +43,7 @@ Notifications?.setNotificationHandler({
 export type NotifType =
   | 'meetup_invite'
   | 'meetup_finalized'
+  | 'meetup.finalized'
   | 'meetup_reminder'
   | 'meetup_cancelled'
   | 'recommendation_ready'
@@ -50,14 +52,22 @@ export type NotifType =
 function navigateFromNotification(data: Record<string, unknown>) {
   const type = data?.type as NotifType | undefined;
   const meetupId = (data?.meetupId as string | undefined) ?? 'meetup-1';
+  const placeId = data?.placeId as string | undefined;
 
   if (!type) return;
 
   switch (type) {
     case 'meetup_invite':
-    case 'meetup_finalized':
     case 'meetup_cancelled':
       router.push(routes.meetupDetail(meetupId));
+      break;
+    case 'meetup_finalized':
+    case 'meetup.finalized':
+      if (placeId) {
+        router.push(routes.placeDetail(placeId));
+      } else {
+        router.push(routes.meetupDetail(meetupId));
+      }
       break;
     case 'meetup_reminder':
       router.push(routes.meetupChat(meetupId));
@@ -144,30 +154,14 @@ export async function scheduleMockNotification(type: NotifType, meetupId = 'meet
   if (!Notifications) {
     return;
   }
+  const normalizedType = type === 'meetup.finalized' ? 'meetup_finalized' : type;
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: NOTIF_TITLES[type],
-      body: NOTIF_BODIES[type],
+      title: i18n.t(`fe2.fcm.${normalizedType}_title` as any),
+      body: i18n.t(`fe2.fcm.${normalizedType}_body` as any),
       data: { type, meetupId },
       sound: true,
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2 },
   });
 }
-
-const NOTIF_TITLES: Record<NotifType, string> = {
-  meetup_invite: '🎉 Bạn có lời mời meetup mới!',
-  meetup_finalized: '📍 Địa điểm đã được chốt',
-  meetup_reminder: '⏰ Meetup của bạn sắp bắt đầu',
-  meetup_cancelled: '❌ Meetup đã bị hủy',
-  recommendation_ready: '✨ Đã có gợi ý địa điểm cho nhóm!',
-  nearby_detected: '👋 Phát hiện bạn bè đang ở gần!',
-};
-const NOTIF_BODIES: Record<NotifType, string> = {
-  meetup_invite: 'Việt đã mời bạn tham gia meetup cuối tuần này',
-  meetup_finalized: 'The Coffee House - Nguyễn Huệ đã được chọn. Tap để xem chỉ đường.',
-  meetup_reminder: 'Còn 30 phút nữa. Đừng để bạn bè chờ nhé!',
-  meetup_cancelled: 'Rất tiếc, meetup đã bị hủy bởi người tạo.',
-  recommendation_ready: 'Top 5 địa điểm phù hợp nhất cho giờ hẹn 19:00 đã sẵn sàng.',
-  nearby_detected: 'Huy Tran và Bao Linh đang ở trong bán kính 1km quanh bạn.',
-};
