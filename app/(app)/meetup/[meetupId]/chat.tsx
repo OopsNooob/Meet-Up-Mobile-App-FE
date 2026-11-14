@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,9 +24,23 @@ import {
   MessageStatus,
 } from '@/components/meetup/ChatBubble';
 import { ChatAttachmentSheet } from '@/components/meetup/ChatAttachmentSheet';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { ChatSkeleton } from '@/components/common/Skeleton';
+import { useFriends } from '@/hooks/useFriends';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import {
+  chatService,
+  formatChatLocationText,
+  mapApiChatMessageToUi,
+  mergeChronologicalMessages,
+  toUploadFilesFromAttachments,
+} from '@/services/chatService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { generateUuidV4 } from '@/utils/uuid';
 import { routes } from '@/constants/routes';
 import {
   selectComputedRecommendations,
@@ -39,69 +53,8 @@ import {
   pickChatImagesFromLibrary,
 } from '@/services/chatMediaService';
 
-const CURRENT_USER_ID = 'u1';
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
-
-function getInitialMessages(t: (key: string) => string): ChatMessage[] {
-  const currentUserName = t('fe2.common.you');
-  return [
-    {
-      id: 'm1',
-      userId: 'u2',
-      userName: 'Việt',
-      text: t('fe2.chat.mock_msg_1'),
-      timestamp: new Date(Date.now() - 5 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-    },
-    {
-      id: 'm2',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_2'),
-      timestamp: new Date(Date.now() - 4 * 60 * 1000),
-      status: 'sent',
-      isOwn: true,
-    },
-    {
-      id: 'm3',
-      userId: 'u3',
-      userName: 'Minh',
-      text: t('fe2.chat.mock_msg_3'),
-      timestamp: new Date(Date.now() - 3 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-      attachments: [
-        {
-          id: 'att_init_1',
-          fileName: 'menu-the-coffee-house.png',
-          mimeType: 'image/png',
-          bytes: 332 * 1024,
-          kind: 'image',
-          uri: Image.resolveAssetSource(require('@/assets/images/logo-glow.png'))?.uri,
-        },
-      ],
-    },
-    {
-      id: 'm4',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_pending'),
-      timestamp: new Date(Date.now() - 60 * 1000),
-      status: 'pending',
-      isOwn: true,
-    },
-    {
-      id: 'm5',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_error'),
-      timestamp: new Date(Date.now() - 30 * 1000),
-      status: 'error',
-      isOwn: true,
-    },
-  ];
-}
+const PAGE_LIMIT = 50;
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -109,6 +62,8 @@ export default function ChatScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
+  const currentUserId = useAuthStore((s) => s.user?.id ?? 'u1');
+  const { friends } = useFriends();
   const storeState = useRecommendationStore();
   const { places } = useMemo(
     () => selectComputedRecommendations(storeState),
@@ -116,6 +71,7 @@ export default function ChatScreen() {
   );
 
   const pinnedPlace = useMemo(() => {
+    if (storeState.activeMeetupId !== meetupId || !storeState.hasServerData) return undefined;
     if (storeState.finalizedCandidateKey) {
       return (
         places.find((p) => p.canonicalCandidateKey === storeState.finalizedCandidateKey) ??
@@ -123,13 +79,16 @@ export default function ChatScreen() {
       );
     }
     return places[0];
-  }, [places, storeState.finalizedCandidateKey]);
+  }, [places, storeState.activeMeetupId, storeState.hasServerData, storeState.finalizedCandidateKey, meetupId]);
 
   const currentUserName = t('fe2.common.you');
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages(t));
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [olderLoaded, setOlderLoaded] = useState(false);
+  const [apiError, setApiError] = useState<AppError | null>(null);
+  const loadedMeetupRef = useRef<string | null>(null);
+  const isLoading = !hasLoadedOnce;
   const [inputText, setInputText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentItem[]>([]);
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -137,15 +96,68 @@ export default function ChatScreen() {
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const { emit } = useSocket();
+  const { status: socketStatus, on, off, joinMeetup } = useSocket();
+
+  const resolveSenderName = useCallback(
+    (senderId: string) => {
+      if (senderId === currentUserId) return currentUserName;
+      const friendMatch = friends.find((f) => f.user.id === senderId);
+      return friendMatch?.user.name ?? `#${senderId.slice(0, 6)}`;
+    },
+    [currentUserId, currentUserName, friends]
+  );
+
+  const fetchLatestMessages = useCallback(async () => {
+    const isMeetupChanged = loadedMeetupRef.current !== meetupId;
+    try {
+      const rows = await chatService.listMeetupMessages(meetupId, { limit: PAGE_LIMIT });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      loadedMeetupRef.current = meetupId;
+      setMessages((prev) => mergeChronologicalMessages(isMeetupChanged ? [] : prev, mapped));
+      setOlderLoaded(rows.length < PAGE_LIMIT);
+      setApiError(null);
+    } catch (err) {
+      if (isMeetupChanged) {
+        loadedMeetupRef.current = meetupId;
+        setMessages([]);
+      }
+      setApiError(toApiError(err));
+    }
+  }, [meetupId, currentUserId, resolveSenderName]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
+    let active = true;
+    const loadInitial = async () => {
+      await fetchLatestMessages();
+      if (active) setHasLoadedOnce(true);
+    };
+    void loadInitial();
     return () => {
-      clearTimeout(timer);
+      active = false;
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
-  }, []);
+  }, [fetchLatestMessages]);
+
+  useEffect(() => {
+    if (socketStatus === 'connected') {
+      joinMeetup(meetupId);
+    }
+  }, [socketStatus, meetupId, joinMeetup]);
+
+  useEffect(() => {
+    const handleChatEvent = (payload: { meetupId?: string }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      void fetchLatestMessages();
+    };
+    on('meetup:chat-message', handleChatEvent);
+    on('MeetupChatMessageCreated.v1', handleChatEvent);
+    return () => {
+      off('meetup:chat-message');
+      off('MeetupChatMessageCreated.v1');
+    };
+  }, [on, off, socketStatus, meetupId, fetchLatestMessages]);
 
   const showFeedback = (msg: string) => {
     setFeedbackBanner(msg);
@@ -153,42 +165,40 @@ export default function ChatScreen() {
     bannerTimerRef.current = setTimeout(() => setFeedbackBanner(null), 3500);
   };
 
-  const prependOlderMessages = () => {
+  const loadOlderMessages = useCallback(async () => {
     if (olderLoaded) return;
-    const olderMsgs: ChatMessage[] = [
-      {
-        id: 'm_old_1',
-        userId: 'u2',
-        userName: 'Việt',
-        text: t('fe2.chat.older_msg_1'),
-        timestamp: new Date(Date.now() - 15 * 60 * 1000),
-        status: 'sent',
-        isOwn: false,
-      },
-      {
-        id: 'm_old_2',
-        userId: 'u3',
-        userName: 'Minh',
-        text: t('fe2.chat.older_msg_2'),
-        timestamp: new Date(Date.now() - 12 * 60 * 1000),
-        status: 'sent',
-        isOwn: false,
-      },
-    ];
-    setMessages((prev) => [...olderMsgs, ...prev]);
-    setOlderLoaded(true);
-  };
+    const oldest = messages.find((m) => m.status === 'sent');
+    if (!oldest) {
+      await fetchLatestMessages();
+      return;
+    }
+    try {
+      const rows = await chatService.listMeetupMessages(meetupId, {
+        before: oldest.timestamp.toISOString(),
+        beforeId: oldest.id,
+        limit: PAGE_LIMIT,
+      });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      setMessages((prev) => mergeChronologicalMessages(mapped, prev));
+      if (rows.length < PAGE_LIMIT) {
+        setOlderLoaded(true);
+      }
+      setApiError(null);
+    } catch (err) {
+      setApiError(toApiError(err));
+    }
+  }, [olderLoaded, messages, meetupId, currentUserId, resolveSenderName, fetchLatestMessages]);
 
   const handleLoadOlder = useSinglePress(() => {
-    prependOlderMessages();
+    void loadOlderMessages();
   }, 500);
 
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      prependOlderMessages();
-      setIsRefreshing(false);
-    }, 650);
+    await fetchLatestMessages();
+    setIsRefreshing(false);
   }, 700);
 
   const handleOpenRecommendations = useSinglePress(() => {
@@ -251,14 +261,45 @@ export default function ChatScreen() {
 
   const canSend = inputText.trim().length > 0 || pendingAttachments.length > 0;
 
-  const handleSend = useSinglePress(() => {
+  const sendOptimisticMessage = async (newMsg: ChatMessage, outboundText?: string) => {
+    const clientMessageId = newMsg.clientMessageId || newMsg.id;
+    try {
+      const serverMsg = await chatService.sendMeetupMessage(meetupId, {
+        clientMessageId,
+        text: outboundText !== undefined ? outboundText : newMsg.text || undefined,
+        files: toUploadFilesFromAttachments(newMsg.attachments),
+      });
+      const mapped = mapApiChatMessageToUi(serverMsg, currentUserId, resolveSenderName);
+      setMessages((prev) =>
+        mergeChronologicalMessages(
+          prev.filter((m) => m.id !== newMsg.id && m.clientMessageId !== clientMessageId),
+          [mapped]
+        )
+      );
+      setApiError(null);
+    } catch (err) {
+      const parsed = toApiError(err);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === newMsg.id || m.clientMessageId === clientMessageId
+            ? { ...m, status: 'error' as MessageStatus }
+            : m
+        )
+      );
+      showFeedback(t(`errors.${parsed.code}.description` as any));
+    }
+  };
+
+  const handleSend = useSinglePress(async () => {
     const text = inputText.trim();
     if (!text && pendingAttachments.length === 0) return;
     const attachmentsToSend =
       pendingAttachments.length > 0 ? [...pendingAttachments] : undefined;
+    const clientMessageId = generateUuidV4();
     const newMsg: ChatMessage = {
-      id: `m_${Date.now()}`,
-      userId: CURRENT_USER_ID,
+      id: clientMessageId,
+      clientMessageId,
+      userId: currentUserId,
       userName: currentUserName,
       text,
       timestamp: new Date(),
@@ -269,18 +310,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
     setPendingAttachments([]);
-
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 650);
-    emit('meetup:chat-message', {
-      eventId: newMsg.id,
-      meetupId,
-      text,
-      attachmentsCount: attachmentsToSend?.length ?? 0,
-    });
+    await sendOptimisticMessage(newMsg);
   }, 450);
 
   const handleShareLocation = useSinglePress(async () => {
@@ -297,9 +327,12 @@ export default function ChatScreen() {
         return;
       }
 
+      const clientMessageId = generateUuidV4();
+      const locationText = formatChatLocationText(res.location);
       const newMsg: ChatMessage = {
-        id: `m_${Date.now()}`,
-        userId: CURRENT_USER_ID,
+        id: clientMessageId,
+        clientMessageId,
+        userId: currentUserId,
         userName: currentUserName,
         text: '',
         timestamp: new Date(),
@@ -308,30 +341,22 @@ export default function ChatScreen() {
         location: res.location,
       };
       setMessages((prev) => [...prev, newMsg]);
-      setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-        );
-      }, 600);
-      emit('meetup:chat-message', {
-        eventId: newMsg.id,
-        meetupId,
-        text: res.location.address || `${res.location.latitude},${res.location.longitude}`,
-      });
+      await sendOptimisticMessage(newMsg, locationText);
     } finally {
       setIsLocating(false);
     }
   }, 700);
 
-  const handleRetry = useSinglePress((messageId: string) => {
+  const handleRetry = useSinglePress(async (messageId: string) => {
+    const failedMsg = messages.find((m) => m.id === messageId);
+    if (!failedMsg) return;
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, status: 'pending' as MessageStatus } : m))
     );
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 700);
+    const outboundText = failedMsg.location
+      ? formatChatLocationText(failedMsg.location)
+      : failedMsg.text || undefined;
+    await sendOptimisticMessage(failedMsg, outboundText);
   }, 600);
 
   return (
@@ -394,39 +419,52 @@ export default function ChatScreen() {
         <View style={{ flex: 1 }}>
           <ChatSkeleton />
         </View>
+      ) : apiError && messages.length === 0 ? (
+        <ErrorState error={apiError} onRetry={handleRefresh} />
       ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-              progressBackgroundColor={colors.surface}
-            />
-          }
-          ListHeaderComponent={
-            <TouchableOpacity
-              style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
-              onPress={handleLoadOlder}
-              disabled={olderLoaded}
-            >
-              <Text
-                style={[
-                  styles.loadOlderText,
-                  { color: olderLoaded ? colors.placeholder : colors.primary },
-                ]}
+        <>
+          {apiError && (
+            <View style={{ padding: 8 }}>
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${apiError.code}.title` as any)}
+                message={t(`errors.${apiError.code}.description` as any)}
+              />
+            </View>
+          )}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+                progressBackgroundColor={colors.surface}
+              />
+            }
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
+                onPress={handleLoadOlder}
+                disabled={olderLoaded}
               >
-                {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
-              </Text>
-            </TouchableOpacity>
-          }
-          renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
-          contentContainerStyle={styles.list}
-        />
+                <Text
+                  style={[
+                    styles.loadOlderText,
+                    { color: olderLoaded ? colors.placeholder : colors.primary },
+                  ]}
+                >
+                  {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
+                </Text>
+              </TouchableOpacity>
+            }
+            renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
+            contentContainerStyle={styles.list}
+          />
+        </>
       )}
 
       {/* Pending Attachments Strip */}

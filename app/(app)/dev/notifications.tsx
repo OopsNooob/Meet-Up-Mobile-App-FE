@@ -13,6 +13,7 @@ import { Bell, RefreshCw, BellOff, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { NotifType, scheduleMockNotification, useFCM } from '@/hooks/useFCM';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { InlineAlert } from '@/components/common/InlineAlert';
 import { InAppNotificationBanner } from '@/components/common/InAppNotificationBanner';
 import { routes } from '@/constants/routes';
 
@@ -29,7 +30,15 @@ export default function NotificationsTestScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [deviceRegistered, setDeviceRegistered] = useState(true);
+  const {
+    expoPushToken,
+    registeredDeviceId,
+    registrationError,
+    registerTokenWithBackend,
+    revokeCurrentDevice,
+  } = useFCM();
+
+  const deviceRegistered = Boolean(registeredDeviceId);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [recentList, setRecentList] = useState<RecentNotifItem[]>([]);
   const [bannerInfo, setBannerInfo] = useState<{
@@ -39,13 +48,12 @@ export default function NotificationsTestScreen() {
     type?: NotifType;
   } | null>(null);
 
-  useFCM();
-
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    if (expoPushToken) {
+      await registerTokenWithBackend(expoPushToken);
+    }
+    setIsRefreshing(false);
   }, 700);
 
   const navigateByType = useSinglePress((type?: NotifType) => {
@@ -65,8 +73,16 @@ export default function NotificationsTestScreen() {
     }
   }, 600);
 
-  const handleRegisterDevice = useSinglePress(() => setDeviceRegistered(true), 400);
-  const handleUnregisterDevice = useSinglePress(() => setDeviceRegistered(false), 400);
+  const handleRegisterDevice = useSinglePress(async () => {
+    const targetToken =
+      expoPushToken && expoPushToken.length >= 20
+        ? expoPushToken
+        : 'ExponentPushToken[dev-simulator-token]';
+    await registerTokenWithBackend(targetToken);
+  }, 400);
+  const handleUnregisterDevice = useSinglePress(async () => {
+    await revokeCurrentDevice();
+  }, 400);
 
   const handleTest = useSinglePress((type: NotifType) => {
     scheduleMockNotification(type, 'meetup-1');
@@ -164,6 +180,13 @@ export default function NotificationsTestScreen() {
               ? t('fe2.dev_notifications.device_registered')
               : t('fe2.dev_notifications.device_unregistered')}
           </Text>
+          {registrationError && (
+            <InlineAlert
+              tone="danger"
+              title={t(`errors.${registrationError.code}.title` as any)}
+              message={t(`errors.${registrationError.code}.description` as any)}
+            />
+          )}
           <View style={styles.deviceActions}>
             <TouchableOpacity
               style={[

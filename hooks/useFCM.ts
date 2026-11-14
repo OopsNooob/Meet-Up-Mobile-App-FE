@@ -5,12 +5,15 @@
  *   - Xử lý notification ở foreground và background
  *   - Deep link điều hướng đến đúng màn hình meetup / gợi ý / bạn bè gần đây
  */
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { EventSubscription } from 'expo-notifications';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
-import { useAuthStore } from '@/store/useAuthStore';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import { notificationService } from '@/services/notificationService';
+import { onLogout, useAuthStore } from '@/store/useAuthStore';
 import { routes } from '@/constants/routes';
 import i18n from '@/locales/i18n';
 
@@ -83,11 +86,70 @@ function navigateFromNotification(data: Record<string, unknown>) {
   }
 }
 
+let cachedExpoPushToken: string | null = null;
+let cachedDeviceTokenId: string | null = null;
+
+onLogout(() => {
+  const prevId = cachedDeviceTokenId;
+  cachedDeviceTokenId = null;
+  if (prevId) {
+    void notificationService.revokeDeviceToken(prevId).catch(() => {});
+  }
+});
+
 // ──── Hook chính ──────────────────────────────────────────────────────────
 export function useFCM() {
   const token = useAuthStore((s) => s.accessToken);
   const notifListener = useRef<EventSubscription | null>(null);
   const responseListener = useRef<EventSubscription | null>(null);
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(cachedExpoPushToken);
+  const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(
+    cachedDeviceTokenId
+  );
+  const [registrationError, setRegistrationError] = useState<AppError | null>(null);
+
+  const registerTokenWithBackend = useCallback(
+    async (pushToken: string): Promise<string | null> => {
+      if (!useAuthStore.getState().accessToken || pushToken.length < 20) {
+        return null;
+      }
+      const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+      try {
+        const res = cachedDeviceTokenId
+          ? await notificationService.updateDeviceToken(cachedDeviceTokenId, {
+              token: pushToken,
+              platform,
+            })
+          : await notificationService.registerDeviceToken({
+              token: pushToken,
+              platform,
+            });
+        cachedDeviceTokenId = res.id;
+        setRegisteredDeviceId(res.id);
+        setRegistrationError(null);
+        return res.id;
+      } catch (err) {
+        setRegistrationError(toApiError(err));
+        return null;
+      }
+    },
+    []
+  );
+
+  const revokeCurrentDevice = useCallback(async (): Promise<boolean> => {
+    const targetId = cachedDeviceTokenId ?? registeredDeviceId;
+    if (!targetId) return true;
+    try {
+      await notificationService.revokeDeviceToken(targetId);
+      cachedDeviceTokenId = null;
+      setRegisteredDeviceId(null);
+      setRegistrationError(null);
+      return true;
+    } catch (err) {
+      setRegistrationError(toApiError(err));
+      return false;
+    }
+  }, [registeredDeviceId]);
 
   useEffect(() => {
     if (!Notifications) return;
@@ -108,8 +170,9 @@ export function useFCM() {
       }
 
       const tokenData = await Notifications.getExpoPushTokenAsync();
-      const expoPushToken = tokenData.data;
-      console.log('[FCM] Expo Push Token:', expoPushToken);
+      const pushToken = tokenData.data;
+      cachedExpoPushToken = pushToken;
+      setExpoPushToken(pushToken);
 
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
@@ -117,6 +180,10 @@ export function useFCM() {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
         });
+      }
+
+      if (token) {
+        await registerTokenWithBackend(pushToken);
       }
     })();
 
@@ -136,7 +203,15 @@ export function useFCM() {
       notifListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [token]);
+  }, [token, registerTokenWithBackend]);
+
+  return {
+    expoPushToken,
+    registeredDeviceId,
+    registrationError,
+    registerTokenWithBackend,
+    revokeCurrentDevice,
+  };
 }
 
 // ──── Lấy notification khi app mở từ killed state ─────────────────────────

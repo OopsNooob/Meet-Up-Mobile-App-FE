@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import type { AppError } from '@/types/async';
+import { privacyService } from '@/services/privacyService';
+import type { SavePrivacySettingsRequest } from '@/types/api';
 import { PrivacySettings, SharingMode, SelectedFriend } from '../types/privacy';
 
 export const MOCK_FRIENDS: SelectedFriend[] = [
@@ -19,7 +22,14 @@ export const MOCK_FRIENDS: SelectedFriend[] = [
 interface PrivacyStoreState {
   settings: PrivacySettings;
   availableFriends: SelectedFriend[];
-  // Actions
+  isSyncing: boolean;
+  apiError: AppError | null;
+  clearApiError: () => void;
+  setAvailableFriends: (friends: SelectedFriend[]) => void;
+  fetchPrivacySettings: () => Promise<boolean>;
+  savePrivacySettingsToServer: (partial?: Partial<PrivacySettings>) => Promise<boolean>;
+  removeSelectedFriendFromServer: (friendId: string) => Promise<boolean>;
+  // Local / synchronous actions (kept compatible)
   setSharingMode: (mode: SharingMode) => void;
   setSharingExpiresAt: (expiresAt: string | null) => void;
   setUseApproximateLocation: (val: boolean) => void;
@@ -30,6 +40,31 @@ interface PrivacyStoreState {
   isEffectiveSharingActive: () => boolean;
 }
 
+function buildSavePayload(
+  next: PrivacySettings,
+  fallbackFriendId?: string
+): SavePrivacySettingsRequest {
+  let sharingExpiresAt = next.sharingExpiresAt;
+  let selectedFriendIds = [...next.selectedFriendIds];
+
+  if (next.sharingMode === 'off') {
+    sharingExpiresAt = null;
+    selectedFriendIds = [];
+  } else if (next.sharingMode === 'selected_friends' && selectedFriendIds.length === 0) {
+    if (fallbackFriendId) {
+      selectedFriendIds = [fallbackFriendId];
+    }
+  }
+
+  return {
+    sharingMode: next.sharingMode,
+    sharingExpiresAt,
+    useApproximateLocation: next.useApproximateLocation,
+    nearbyFeatureEnabled: next.nearbyFeatureEnabled,
+    selectedFriendIds,
+  };
+}
+
 export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
   settings: {
     sharingMode: 'friends',
@@ -37,10 +72,84 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
     isLocationSharingEnabled: true,
     useApproximateLocation: false,
     nearbyFeatureEnabled: true,
-    selectedFriendIds: ['u2', 'u3'],
-    updatedAt: new Date().toISOString(),
+    selectedFriendIds: [],
+    updatedAt: null,
   },
   availableFriends: MOCK_FRIENDS,
+  isSyncing: false,
+  apiError: null,
+
+  clearApiError: () => set({ apiError: null }),
+
+  setAvailableFriends: (friends: SelectedFriend[]) => {
+    set({ availableFriends: friends });
+  },
+
+  fetchPrivacySettings: async () => {
+    set({ isSyncing: true, apiError: null });
+    try {
+      const serverSettings = await privacyService.getSettings();
+      set({
+        settings: serverSettings,
+        isSyncing: false,
+        apiError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isSyncing: false,
+        apiError: err as AppError,
+      });
+      return false;
+    }
+  },
+
+  savePrivacySettingsToServer: async (partial?: Partial<PrivacySettings>) => {
+    const prev = get().settings;
+    const candidate: PrivacySettings = {
+      ...prev,
+      ...partial,
+    };
+    const fallbackFriendId = get().availableFriends[0]?.id;
+    const payload = buildSavePayload(candidate, fallbackFriendId);
+
+    set({ isSyncing: true, apiError: null });
+    try {
+      const updated = await privacyService.saveSettings(payload);
+      set({
+        settings: updated,
+        isSyncing: false,
+        apiError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isSyncing: false,
+        apiError: err as AppError,
+      });
+      return false;
+    }
+  },
+
+  removeSelectedFriendFromServer: async (friendId: string) => {
+    set({ isSyncing: true, apiError: null });
+    try {
+      await privacyService.removeSelectedFriend(friendId);
+      const updated = await privacyService.getSettings();
+      set({
+        settings: updated,
+        isSyncing: false,
+        apiError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isSyncing: false,
+        apiError: err as AppError,
+      });
+      return false;
+    }
+  },
 
   setSharingMode: (mode: SharingMode) => {
     set((state) => {

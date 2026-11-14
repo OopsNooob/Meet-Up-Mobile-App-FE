@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { PlaceDetailSkeleton, ReviewItemSkeleton } from '@/components/common/Skeleton';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { routes } from '@/constants/routes';
@@ -40,12 +42,20 @@ export default function PlaceDetailScreen() {
   const storeState = useRecommendationStore();
   const {
     runId,
+    activeMeetupId,
+    apiError,
+    hasServerData,
     contextStatus,
     weatherPolicy,
     effectiveRoutingPreference,
     votedCandidateKey,
     finalizedCandidateKey,
     favoriteCandidateKeys,
+    loadRecommendationsForMeetup,
+    castVoteOnServer,
+    finalizeOnServer,
+    toggleFavoriteOnServer,
+    sendFeedbackToServer,
     toggleVotePlace,
     finalizePlace,
     toggleFavoritePlace,
@@ -62,7 +72,7 @@ export default function PlaceDetailScreen() {
     [places, placeId]
   );
 
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = storeState.isApiLoading;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [finalizeDialogVisible, setFinalizeDialogVisible] = useState(false);
 
@@ -113,11 +123,6 @@ export default function PlaceDetailScreen() {
 
   const hasMoreReviews = visibleReviewsCount < allReviews.length;
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
-  }, []);
-
   const handleLoadMoreReviews = useCallback(() => {
     if (isLoading || isRefreshing || isLoadingMoreReviews || !hasMoreReviews) return;
     setIsLoadingMoreReviews(true);
@@ -139,57 +144,95 @@ export default function PlaceDetailScreen() {
     [handleLoadMoreReviews, hasMoreReviews, isLoadingMoreReviews]
   );
 
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setVisibleReviewsCount(2);
-      setIsRefreshing(false);
-    }, 650);
+    if (activeMeetupId) {
+      await loadRecommendationsForMeetup(activeMeetupId);
+    }
+    setVisibleReviewsCount(2);
+    setIsRefreshing(false);
   }, 800);
 
   const isStale = contextStatus === 'STALE_CONTEXT';
-  const isVoted = votedCandidateKey === place.canonicalCandidateKey;
-  const isFinalized = finalizedCandidateKey === place.canonicalCandidateKey;
   const isAnyFinalized = finalizedCandidateKey !== null;
-  const isFavorite = favoriteCandidateKeys.includes(place.canonicalCandidateKey);
 
-  const handleVote = useSinglePress(() => {
-    if (isStale || isAnyFinalized) return;
-    toggleVotePlace(place.canonicalCandidateKey, place.rank);
+  const handleVote = useSinglePress(async () => {
+    if (!place || isStale || isAnyFinalized) return;
+    if (hasServerData && activeMeetupId) {
+      await castVoteOnServer(activeMeetupId, place.canonicalCandidateKey, place.rank);
+    } else {
+      toggleVotePlace(place.canonicalCandidateKey, place.rank);
+    }
   }, 350);
 
   const handleOpenExplanation = useSinglePress(() => {
+    if (!place) return;
     router.push(routes.placeExplanation(place.placeId, place.name));
   }, 600);
 
   const handleOpenFinalizeDialog = useSinglePress(() => {
-    if (isStale || isFinalized) return;
+    if (!place || isStale || finalizedCandidateKey === place.canonicalCandidateKey) return;
     setFinalizeDialogVisible(true);
   }, 500);
 
-  const handleConfirmFinalize = useSinglePress(() => {
+  const handleConfirmFinalize = useSinglePress(async () => {
+    if (!place) return;
     setFinalizeDialogVisible(false);
-    finalizePlace(place.canonicalCandidateKey, place.rank);
+    if (hasServerData && activeMeetupId) {
+      await finalizeOnServer(activeMeetupId, place.canonicalCandidateKey, place.rank);
+    } else {
+      finalizePlace(place.canonicalCandidateKey, place.rank);
+    }
   }, 500);
 
-  const handleFavorite = useSinglePress(() => {
-    toggleFavoritePlace(place.canonicalCandidateKey, place.rank);
+  const handleFavorite = useSinglePress(async () => {
+    if (!place) return;
+    if (hasServerData) {
+      await toggleFavoriteOnServer(place.canonicalCandidateKey, place.rank);
+    } else {
+      toggleFavoritePlace(place.canonicalCandidateKey, place.rank);
+    }
   }, 350);
 
   const handleOpenNavigation = useSinglePress(() => {
-    recordFeedbackEvent('NavigationOpened', place.canonicalCandidateKey, place.rank);
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-      place.address
-    )}`;
+    if (!place) return;
+    if (hasServerData && activeMeetupId) {
+      void sendFeedbackToServer(
+        activeMeetupId,
+        'NAVIGATION_OPENED',
+        place.canonicalCandidateKey,
+        place.rank
+      );
+    } else {
+      recordFeedbackEvent('NavigationOpened', place.canonicalCandidateKey, place.rank);
+    }
+    const query = place.address?.trim() ? place.address : `${place.lat},${place.lng}`;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
     Linking.openURL(url).catch(() => {
       Alert.alert(t('fe2.common.error'), t('fe2.common.maps_open_error'));
     });
   }, 800);
 
+  const openingHoursKeys = place?.opening.hoursKeys;
   const openingHours = useMemo(
-    () => place.opening.hoursKeys.map((key) => t(key as any)),
-    [place.opening.hoursKeys, t]
+    () => (openingHoursKeys ?? []).map((key) => t(key as any)),
+    [openingHoursKeys, t]
   );
+
+  if (!place) {
+    return (
+      <View style={styles.container}>
+        <ErrorState
+          error={apiError ?? undefined}
+          onRetry={activeMeetupId ? handleRefresh : undefined}
+        />
+      </View>
+    );
+  }
+
+  const isVoted = votedCandidateKey === place.canonicalCandidateKey;
+  const isFinalized = finalizedCandidateKey === place.canonicalCandidateKey;
+  const isFavorite = favoriteCandidateKeys.includes(place.canonicalCandidateKey);
   const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
   const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
   const closingMins =
@@ -240,6 +283,13 @@ export default function PlaceDetailScreen() {
         <PlaceDetailSkeleton />
       ) : (
         <>
+          {apiError && (
+            <InlineAlert
+              tone="danger"
+              title={t(`errors.${apiError.code}.title` as any)}
+              message={t(`errors.${apiError.code}.description` as any)}
+            />
+          )}
           <View style={styles.titleRow}>
             <Text style={styles.rankBadge}>#{place.rank}</Text>
             <Text style={styles.name}>{place.name}</Text>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { ExplanationSkeleton } from '@/components/common/Skeleton';
 import {
   selectComputedRecommendations,
@@ -27,6 +29,8 @@ export default function AiExplanationScreen() {
   }>();
 
   const storeState = useRecommendationStore();
+  const { activeMeetupId, apiError, hasServerData, replayRunOnServer, loadRecommendationsForMeetup } =
+    storeState;
   const { places } = useMemo(
     () => selectComputedRecommendations(storeState),
     [storeState]
@@ -37,55 +41,67 @@ export default function AiExplanationScreen() {
     [places, placeId]
   );
 
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = storeState.isApiLoading;
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [replayStatus, setReplayStatus] = useState<'idle' | 'ok' | 'error'>('idle');
 
   const handleClose = useSinglePress(() => router.back(), 500);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 550);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    if (hasServerData && activeMeetupId) {
+      const replay = await replayRunOnServer(activeMeetupId);
+      setReplayStatus(replay?.replayConsistent ? 'ok' : 'error');
+    } else if (activeMeetupId) {
+      await loadRecommendationsForMeetup(activeMeetupId);
+    }
+    setIsRefreshing(false);
   }, 700);
 
-  const aiSummaryText = t(place.explanation.aiSummaryKey as any);
-
-  const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
-  const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
-  const viewerEtaMin = Math.round(place.viewerFeature.etaSeconds / 60);
-
-  const travelModeLabel =
-    place.viewerFeature.travelMode === 'DRIVE'
-      ? t('fe2.recommendation.travel_mode_drive')
-      : t('fe2.recommendation.travel_mode_two_wheeler');
-
+  const openingStatusAtScheduled = place?.opening.statusAtScheduled;
   const openingHighlightText = useMemo(() => {
-    if (place.opening.statusAtScheduled === 'OPEN') {
+    if (openingStatusAtScheduled === 'OPEN') {
       return t('fe2.ai_explanation.highlight_opening_open');
     }
-    if (place.opening.statusAtScheduled === 'CLOSED') {
+    if (openingStatusAtScheduled === 'CLOSED') {
       return t('fe2.ai_explanation.highlight_opening_closed');
     }
     return t('fe2.ai_explanation.highlight_opening_unknown');
-  }, [place.opening.statusAtScheduled, t]);
+  }, [openingStatusAtScheduled, t]);
 
+  const rawWarnings = place?.explanation.warnings;
   const friendlyWarnings = useMemo(() => {
-    return place.explanation.warnings.map((code) => {
+    return (rawWarnings ?? []).map((code) => {
       if (code === 'CLOSING_SOON_AT_MEETUP_TIME') return t('fe2.ai_explanation.warn_closing_soon');
       if (code === 'BAD_WEATHER_OUTDOOR') return t('fe2.ai_explanation.warn_bad_weather');
       if (code === 'OPENING_FROM_REGULAR_HOURS') return t('fe2.ai_explanation.warn_regular_hours');
       if (code === 'OPENING_STATUS_UNKNOWN') return t('fe2.ai_explanation.warn_unknown_hours');
       return code;
     });
-  }, [place.explanation.warnings, t]);
+  }, [rawWarnings, t]);
+
+  if (!place) {
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          <ErrorState error={apiError ?? undefined} onRetry={handleRefresh} />
+        </View>
+      </View>
+    );
+  }
+
+  const avgEtaMin = Math.round(place.avgEtaSeconds / 60);
+  const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
+  const viewerEtaMin = Math.round(place.viewerFeature.etaSeconds / 60);
+
+  const aiSummaryText = place.explanation.aiSummaryKey
+    ? t(place.explanation.aiSummaryKey as any)
+    : t('fe2.ai_explanation.highlight_fair', { avg: avgEtaMin, max: maxEtaMin });
+
+  const travelModeLabel =
+    place.viewerFeature.travelMode === 'DRIVE'
+      ? t('fe2.recommendation.travel_mode_drive')
+      : t('fe2.recommendation.travel_mode_two_wheeler');
 
   return (
     <View style={styles.overlay}>
@@ -118,6 +134,20 @@ export default function AiExplanationScreen() {
             <ExplanationSkeleton />
           ) : (
             <View style={{ gap: 12 }}>
+              {replayStatus === 'ok' && (
+                <InlineAlert
+                  tone="success"
+                  title={t('fe2.common.replay_audit_title')}
+                  message={t('fe2.common.replay_consistent_msg')}
+                />
+              )}
+              {replayStatus === 'error' && (
+                <InlineAlert
+                  tone="warning"
+                  title={t('fe2.common.replay_audit_title')}
+                  message={t('fe2.common.replay_failed_msg')}
+                />
+              )}
               <View style={{ gap: 8 }}>
                 <View style={[styles.aiBadge, { backgroundColor: colors.purpleLight }]}>
                   <Text style={[styles.aiBadgeText, { color: colors.purple }]}>

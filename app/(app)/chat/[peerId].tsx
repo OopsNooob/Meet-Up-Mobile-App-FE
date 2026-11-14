@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,9 +24,23 @@ import {
   MessageStatus,
 } from '@/components/meetup/ChatBubble';
 import { ChatAttachmentSheet } from '@/components/meetup/ChatAttachmentSheet';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { ChatSkeleton } from '@/components/common/Skeleton';
+import { useFriends } from '@/hooks/useFriends';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import {
+  chatService,
+  formatChatLocationText,
+  mapApiChatMessageToUi,
+  mergeChronologicalMessages,
+  toUploadFilesFromAttachments,
+} from '@/services/chatService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { generateUuidV4 } from '@/utils/uuid';
 import { routes } from '@/constants/routes';
 import {
   captureChatPhoto,
@@ -35,61 +49,8 @@ import {
   pickChatImagesFromLibrary,
 } from '@/services/chatMediaService';
 
-const CURRENT_USER_ID = 'u1';
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
-
-const PEER_NAMES: Record<string, string> = {
-  u2: 'Việt',
-  u3: 'Minh',
-  u4: 'Lan',
-};
-
-function getInitialDirectMessages(
-  peerId: string,
-  peerName: string,
-  t: (key: string, opts?: Record<string, unknown>) => string
-): ChatMessage[] {
-  const currentUserName = t('fe2.common.you');
-  return [
-    {
-      id: 'dm1',
-      userId: peerId,
-      userName: peerName,
-      text: t('fe2.direct_chat.mock_msg_1'),
-      timestamp: new Date(Date.now() - 8 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-    },
-    {
-      id: 'dm2',
-      userId: CURRENT_USER_ID,
-      userName: currentUserName,
-      text: t('fe2.direct_chat.mock_msg_2'),
-      timestamp: new Date(Date.now() - 6 * 60 * 1000),
-      status: 'sent',
-      isOwn: true,
-    },
-    {
-      id: 'dm3',
-      userId: peerId,
-      userName: peerName,
-      text: t('fe2.direct_chat.mock_msg_3'),
-      timestamp: new Date(Date.now() - 4 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-      attachments: [
-        {
-          id: 'datt_init_1',
-          fileName: 'anh-quan-ca-phe-nguyen-hue.png',
-          mimeType: 'image/png',
-          bytes: 332 * 1024,
-          kind: 'image',
-          uri: Image.resolveAssetSource(require('@/assets/images/logo-glow.png'))?.uri,
-        },
-      ],
-    },
-  ];
-}
+const PAGE_LIMIT = 50;
 
 export default function DirectChatScreen() {
   const { t } = useTranslation();
@@ -100,15 +61,19 @@ export default function DirectChatScreen() {
     peerName?: string;
   }>();
 
-  const peerName = paramPeerName || PEER_NAMES[peerId] || 'Việt';
+  const currentUserId = useAuthStore((s) => s.user?.id ?? 'u1');
+  const { friends } = useFriends();
+  const matchedFriend = friends.find((f) => f.user.id === peerId);
+  const peerName = paramPeerName || matchedFriend?.user.name || `#${peerId.slice(0, 6)}`;
   const currentUserName = t('fe2.common.you');
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    getInitialDirectMessages(peerId, peerName, t)
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [olderLoaded, setOlderLoaded] = useState(false);
+  const [apiError, setApiError] = useState<AppError | null>(null);
+  const loadedPeerRef = useRef<string | null>(null);
+  const isLoading = !hasLoadedOnce;
   const [inputText, setInputText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentItem[]>([]);
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -116,15 +81,67 @@ export default function DirectChatScreen() {
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const { emit } = useSocket();
+  const { status: socketStatus, on, off } = useSocket();
+
+  const resolveSenderName = useCallback(
+    (senderId: string) => (senderId === currentUserId ? currentUserName : peerName),
+    [currentUserId, currentUserName, peerName]
+  );
+
+  const fetchLatestMessages = useCallback(async () => {
+    const isPeerChanged = loadedPeerRef.current !== peerId;
+    try {
+      const rows = await chatService.listDirectMessages(peerId, { limit: PAGE_LIMIT });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      loadedPeerRef.current = peerId;
+      setMessages((prev) => mergeChronologicalMessages(isPeerChanged ? [] : prev, mapped));
+      setOlderLoaded(rows.length < PAGE_LIMIT);
+      setApiError(null);
+    } catch (err) {
+      if (isPeerChanged) {
+        loadedPeerRef.current = peerId;
+        setMessages([]);
+      }
+      setApiError(toApiError(err));
+    }
+  }, [peerId, currentUserId, resolveSenderName]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
+    let active = true;
+    const loadInitial = async () => {
+      await fetchLatestMessages();
+      if (active) setHasLoadedOnce(true);
+    };
+    void loadInitial();
     return () => {
-      clearTimeout(timer);
+      active = false;
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
-  }, []);
+  }, [fetchLatestMessages]);
+
+  useEffect(() => {
+    const handleDirectEvent = (payload: {
+      senderUserId?: string;
+      recipientUserId?: string;
+    }) => {
+      if (
+        payload?.senderUserId &&
+        payload.senderUserId !== peerId &&
+        payload.recipientUserId !== peerId
+      ) {
+        return;
+      }
+      void fetchLatestMessages();
+    };
+    on('direct:chat-message', handleDirectEvent);
+    on('DirectChatMessageCreated.v1', handleDirectEvent);
+    return () => {
+      off('direct:chat-message');
+      off('DirectChatMessageCreated.v1');
+    };
+  }, [on, off, socketStatus, peerId, fetchLatestMessages]);
 
   const showFeedback = (msg: string) => {
     setFeedbackBanner(msg);
@@ -132,42 +149,40 @@ export default function DirectChatScreen() {
     bannerTimerRef.current = setTimeout(() => setFeedbackBanner(null), 3500);
   };
 
-  const prependOlderMessages = () => {
+  const loadOlderMessages = useCallback(async () => {
     if (olderLoaded) return;
-    const olderMsgs: ChatMessage[] = [
-      {
-        id: 'dm_old_1',
-        userId: peerId,
-        userName: peerName,
-        text: t('fe2.direct_chat.older_msg_1'),
-        timestamp: new Date(Date.now() - 25 * 60 * 1000),
-        status: 'sent',
-        isOwn: false,
-      },
-      {
-        id: 'dm_old_2',
-        userId: CURRENT_USER_ID,
-        userName: currentUserName,
-        text: t('fe2.direct_chat.older_msg_2'),
-        timestamp: new Date(Date.now() - 20 * 60 * 1000),
-        status: 'sent',
-        isOwn: true,
-      },
-    ];
-    setMessages((prev) => [...olderMsgs, ...prev]);
-    setOlderLoaded(true);
-  };
+    const oldest = messages.find((m) => m.status === 'sent');
+    if (!oldest) {
+      await fetchLatestMessages();
+      return;
+    }
+    try {
+      const rows = await chatService.listDirectMessages(peerId, {
+        before: oldest.timestamp.toISOString(),
+        beforeId: oldest.id,
+        limit: PAGE_LIMIT,
+      });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      setMessages((prev) => mergeChronologicalMessages(mapped, prev));
+      if (rows.length < PAGE_LIMIT) {
+        setOlderLoaded(true);
+      }
+      setApiError(null);
+    } catch (err) {
+      setApiError(toApiError(err));
+    }
+  }, [olderLoaded, messages, peerId, currentUserId, resolveSenderName, fetchLatestMessages]);
 
   const handleLoadOlder = useSinglePress(() => {
-    prependOlderMessages();
+    void loadOlderMessages();
   }, 500);
 
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      prependOlderMessages();
-      setIsRefreshing(false);
-    }, 600);
+    await fetchLatestMessages();
+    setIsRefreshing(false);
   }, 700);
 
   const handleInviteMeetup = useSinglePress(() => {
@@ -230,14 +245,45 @@ export default function DirectChatScreen() {
 
   const canSend = inputText.trim().length > 0 || pendingAttachments.length > 0;
 
-  const handleSend = useSinglePress(() => {
+  const sendOptimisticMessage = async (newMsg: ChatMessage, outboundText?: string) => {
+    const clientMessageId = newMsg.clientMessageId || newMsg.id;
+    try {
+      const serverMsg = await chatService.sendDirectMessage(peerId, {
+        clientMessageId,
+        text: outboundText !== undefined ? outboundText : newMsg.text || undefined,
+        files: toUploadFilesFromAttachments(newMsg.attachments),
+      });
+      const mapped = mapApiChatMessageToUi(serverMsg, currentUserId, resolveSenderName);
+      setMessages((prev) =>
+        mergeChronologicalMessages(
+          prev.filter((m) => m.id !== newMsg.id && m.clientMessageId !== clientMessageId),
+          [mapped]
+        )
+      );
+      setApiError(null);
+    } catch (err) {
+      const parsed = toApiError(err);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === newMsg.id || m.clientMessageId === clientMessageId
+            ? { ...m, status: 'error' as MessageStatus }
+            : m
+        )
+      );
+      showFeedback(t(`errors.${parsed.code}.description` as any));
+    }
+  };
+
+  const handleSend = useSinglePress(async () => {
     const text = inputText.trim();
     if (!text && pendingAttachments.length === 0) return;
     const attachmentsToSend =
       pendingAttachments.length > 0 ? [...pendingAttachments] : undefined;
+    const clientMessageId = generateUuidV4();
     const newMsg: ChatMessage = {
-      id: `dm_${Date.now()}`,
-      userId: CURRENT_USER_ID,
+      id: clientMessageId,
+      clientMessageId,
+      userId: currentUserId,
       userName: currentUserName,
       text,
       timestamp: new Date(),
@@ -248,18 +294,7 @@ export default function DirectChatScreen() {
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
     setPendingAttachments([]);
-
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 600);
-    emit('direct:chat-message', {
-      eventId: newMsg.id,
-      peerUserId: peerId,
-      text,
-      attachmentsCount: attachmentsToSend?.length ?? 0,
-    });
+    await sendOptimisticMessage(newMsg);
   }, 450);
 
   const handleShareLocation = useSinglePress(async () => {
@@ -276,9 +311,12 @@ export default function DirectChatScreen() {
         return;
       }
 
+      const clientMessageId = generateUuidV4();
+      const locationText = formatChatLocationText(res.location);
       const newMsg: ChatMessage = {
-        id: `dm_${Date.now()}`,
-        userId: CURRENT_USER_ID,
+        id: clientMessageId,
+        clientMessageId,
+        userId: currentUserId,
         userName: currentUserName,
         text: '',
         timestamp: new Date(),
@@ -287,30 +325,22 @@ export default function DirectChatScreen() {
         location: res.location,
       };
       setMessages((prev) => [...prev, newMsg]);
-      setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-        );
-      }, 600);
-      emit('direct:chat-message', {
-        eventId: newMsg.id,
-        peerUserId: peerId,
-        text: res.location.address || `${res.location.latitude},${res.location.longitude}`,
-      });
+      await sendOptimisticMessage(newMsg, locationText);
     } finally {
       setIsLocating(false);
     }
   }, 700);
 
-  const handleRetry = useSinglePress((messageId: string) => {
+  const handleRetry = useSinglePress(async (messageId: string) => {
+    const failedMsg = messages.find((m) => m.id === messageId);
+    if (!failedMsg) return;
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, status: 'pending' as MessageStatus } : m))
     );
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 650);
+    const outboundText = failedMsg.location
+      ? formatChatLocationText(failedMsg.location)
+      : failedMsg.text || undefined;
+    await sendOptimisticMessage(failedMsg, outboundText);
   }, 600);
 
   return (
@@ -371,39 +401,52 @@ export default function DirectChatScreen() {
         <View style={{ flex: 1 }}>
           <ChatSkeleton />
         </View>
+      ) : apiError && messages.length === 0 ? (
+        <ErrorState error={apiError} onRetry={handleRefresh} />
       ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-              progressBackgroundColor={colors.surface}
-            />
-          }
-          ListHeaderComponent={
-            <TouchableOpacity
-              style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
-              onPress={handleLoadOlder}
-              disabled={olderLoaded}
-            >
-              <Text
-                style={[
-                  styles.loadOlderText,
-                  { color: olderLoaded ? colors.placeholder : colors.primary },
-                ]}
+        <>
+          {apiError && (
+            <View style={{ padding: 8 }}>
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${apiError.code}.title` as any)}
+                message={t(`errors.${apiError.code}.description` as any)}
+              />
+            </View>
+          )}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+                progressBackgroundColor={colors.surface}
+              />
+            }
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
+                onPress={handleLoadOlder}
+                disabled={olderLoaded}
               >
-                {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
-              </Text>
-            </TouchableOpacity>
-          }
-          renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
-          contentContainerStyle={styles.list}
-        />
+                <Text
+                  style={[
+                    styles.loadOlderText,
+                    { color: olderLoaded ? colors.placeholder : colors.primary },
+                  ]}
+                >
+                  {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
+                </Text>
+              </TouchableOpacity>
+            }
+            renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
+            contentContainerStyle={styles.list}
+          />
+        </>
       )}
 
       {pendingAttachments.length > 0 && (

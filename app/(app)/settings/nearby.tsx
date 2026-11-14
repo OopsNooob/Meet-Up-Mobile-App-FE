@@ -11,8 +11,10 @@ import {
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
+import { useSocket } from '@/hooks/useSocket';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { InlineAlert } from '@/components/common/InlineAlert';
 import { NearbySkeleton } from '@/components/common/Skeleton';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { NearbyDetectedModal, NearbyFriendItem } from '@/components/settings/NearbyDetectedModal';
@@ -79,7 +81,9 @@ export default function NearbyScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { settings, setNearbyFeatureEnabled } = usePrivacyStore();
+  const { settings, apiError, fetchPrivacySettings, savePrivacySettingsToServer } =
+    usePrivacyStore();
+  const { on, off, status: socketStatus } = useSocket();
   const optIn = settings.nearbyFeatureEnabled;
   const [radius, setRadius] = useState<RadiusOption>(1000);
   const [nearbyState, setNearbyState] = useState<NearbyState>('detected');
@@ -89,36 +93,43 @@ export default function NearbyScreen() {
   const [disableDialogVisible, setDisableDialogVisible] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    (async () => {
+      await fetchPrivacySettings();
+      if (active) setIsLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [fetchPrivacySettings]);
 
-  const handleRefresh = useSinglePress(() => {
+  useEffect(() => {
+    on('NearbyDetected.v1', () => {
+      setNearbyState('detected');
+    });
+    return () => {
+      off('NearbyDetected.v1');
+    };
+  }, [on, off, socketStatus]);
+
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setNearbyState((prev) =>
-        prev === 'cooldown' ? 'detected' : prev === 'detected' ? 'idle' : 'cooldown'
-      );
-      setIsRefreshing(false);
-    }, 700);
+    await fetchPrivacySettings();
+    setIsRefreshing(false);
   }, 800);
 
   const handleSelectRadius = useSinglePress((r: RadiusOption) => {
     setRadius(r);
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
   }, 300);
 
   const handleCreateMeetup = useSinglePress(() => router.push(routes.meetupCreate), 600);
   const handleOpenDetectedModal = useSinglePress(() => setModalVisible(true), 400);
 
-  const handleOptInToggle = (value: boolean) => {
+  const handleOptInToggle = async (value: boolean) => {
     if (!value) {
       setDisableDialogVisible(true);
     } else {
-      setNearbyFeatureEnabled(true);
+      await savePrivacySettingsToServer({ nearbyFeatureEnabled: true });
     }
   };
 
@@ -140,6 +151,21 @@ export default function NearbyScreen() {
         <NearbySkeleton />
       ) : (
         <>
+          {apiError && (
+            <View style={{ gap: 8 }}>
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${apiError.code}.title` as any)}
+                message={t(`errors.${apiError.code}.description` as any)}
+              />
+              <TouchableOpacity
+                style={[styles.createBtn, { backgroundColor: colors.primary }]}
+                onPress={handleRefresh}
+              >
+                <Text style={styles.createBtnText}>{t('fe2.common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('fe2.nearby.intro_title')}</Text>
             <Text style={styles.cardDesc}>{t('fe2.nearby.intro_desc')}</Text>
@@ -289,9 +315,9 @@ export default function NearbyScreen() {
         confirmLabel={t('fe2.nearby.disable_confirm')}
         cancelLabel={t('fe2.nearby.cancel')}
         tone="danger"
-        onConfirm={() => {
+        onConfirm={async () => {
           setDisableDialogVisible(false);
-          setNearbyFeatureEnabled(false);
+          await savePrivacySettingsToServer({ nearbyFeatureEnabled: false });
         }}
         onCancel={() => setDisableDialogVisible(false)}
       />
