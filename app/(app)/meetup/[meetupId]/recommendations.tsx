@@ -25,9 +25,12 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { useSocket } from '@/hooks/useSocket';
 import { PlaceCard, PlaceItem } from '@/components/meetup/PlaceCard';
 import { FilterSortModal } from '@/components/meetup/FilterSortModal';
 import { TravelModeModal } from '@/components/meetup/TravelModeModal';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { PlaceCardSkeleton } from '@/components/common/Skeleton';
 import { routes } from '@/constants/routes';
 import { radius } from '@/theme';
@@ -48,11 +51,19 @@ export default function RecommendationScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
-  const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
+  const { meetupId = 'meetup-1', runId: paramRunId } = useLocalSearchParams<{
+    meetupId: string;
+    runId?: string;
+  }>();
+  const { status: socketStatus, on, off, joinMeetup } = useSocket();
 
   const storeState = useRecommendationStore();
   const {
     runId,
+    activeMeetupDetail,
+    apiError,
+    isApiLoading,
+    hasServerData,
     contextStatus,
     openingFilter,
     weatherPolicy,
@@ -66,8 +77,10 @@ export default function RecommendationScreen() {
     setWeatherPolicy,
     setSortBy,
     setMemberTravelMode,
+    loadRecommendationsForMeetup,
+    refreshRecommendationRun,
+    sendImpressionToServer,
     recordImpressionIfNeeded,
-    rerunForUpdatedContext,
     resetAllFiltersAndScenarios,
   } = storeState;
 
@@ -76,8 +89,10 @@ export default function RecommendationScreen() {
     [storeState]
   );
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState(false);
+  const [isFilterShimming, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const isLoading = !hasCompletedInitialLoad || isFilterShimming || isApiLoading;
   const [visibleCount, setVisibleCount] = useState(INITIAL_PAGE_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
@@ -86,9 +101,45 @@ export default function RecommendationScreen() {
   const [selectedMapPlace, setSelectedMapPlace] = useState<PlaceItem | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 650);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    const init = async () => {
+      await loadRecommendationsForMeetup(meetupId, paramRunId);
+      if (active) setHasCompletedInitialLoad(true);
+    };
+    void init();
+    return () => {
+      active = false;
+    };
+  }, [meetupId, paramRunId, loadRecommendationsForMeetup]);
+
+  useEffect(() => {
+    if (socketStatus === 'connected') {
+      joinMeetup(meetupId);
+    }
+  }, [socketStatus, meetupId, joinMeetup]);
+
+  useEffect(() => {
+    const handleMeetupEvent = (payload: { meetupId?: string; runId?: string }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      void loadRecommendationsForMeetup(meetupId, payload?.runId);
+    };
+
+    on('RecommendationReady', handleMeetupEvent);
+    on('RecommendationReady.v1', handleMeetupEvent);
+    on('VoteUpdated', handleMeetupEvent);
+    on('VoteUpdated.v1', handleMeetupEvent);
+    on('MeetupFinalized', handleMeetupEvent);
+    on('MeetupFinalized.v1', handleMeetupEvent);
+
+    return () => {
+      off('RecommendationReady');
+      off('RecommendationReady.v1');
+      off('VoteUpdated');
+      off('VoteUpdated.v1');
+      off('MeetupFinalized');
+      off('MeetupFinalized.v1');
+    };
+  }, [on, off, socketStatus, meetupId, loadRecommendationsForMeetup]);
 
   // Trigger brief Skeleton shimmer when filter, sort, or travel mode changes
   const triggerFilterSkeleton = useCallback(() => {
@@ -131,9 +182,17 @@ export default function RecommendationScreen() {
     [setMemberTravelMode, triggerFilterSkeleton]
   );
 
-  const handleRerun = useSinglePress(() => {
-    rerunForUpdatedContext();
-    triggerFilterSkeleton();
+  const handleRerun = useSinglePress(async () => {
+    setIsLoading(true);
+    await refreshRecommendationRun(meetupId);
+    setVisibleCount(INITIAL_PAGE_SIZE);
+    setIsLoading(false);
+  }, 500);
+
+  const handleRetryLoad = useSinglePress(async () => {
+    setIsLoading(true);
+    await loadRecommendationsForMeetup(meetupId, paramRunId);
+    setIsLoading(false);
   }, 500);
 
   const handleOpenChat = useSinglePress(() => {
@@ -172,18 +231,31 @@ export default function RecommendationScreen() {
 
   // FE-22: Tự động ghi nhận RecommendationShown đúng 1 lần cho mỗi runId khi kết quả thực sự hiển thị
   useEffect(() => {
-    if (!isLoading && paginatedPlaces.length > 0) {
+    if (!isLoading && !isApiLoading && paginatedPlaces.length > 0) {
       recordImpressionIfNeeded(paginatedPlaces);
+      if (hasServerData) {
+        for (const item of paginatedPlaces) {
+          void sendImpressionToServer(meetupId, item.canonicalCandidateKey, item.rank);
+        }
+      }
     }
-  }, [isLoading, runId, paginatedPlaces, recordImpressionIfNeeded]);
+  }, [
+    isLoading,
+    isApiLoading,
+    hasServerData,
+    meetupId,
+    runId,
+    paginatedPlaces,
+    recordImpressionIfNeeded,
+    sendImpressionToServer,
+  ]);
 
   // Pull-to-Refresh
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setVisibleCount(INITIAL_PAGE_SIZE);
-      setIsRefreshing(false);
-    }, 700);
+    setVisibleCount(INITIAL_PAGE_SIZE);
+    await refreshRecommendationRun(meetupId);
+    setIsRefreshing(false);
   }, 800);
 
   const handlePlacePress = useSinglePress((place: PlaceItem) =>
@@ -321,15 +393,34 @@ export default function RecommendationScreen() {
         </View>
       )}
 
-      {/* Missing Location Banner */}
-      <View style={styles.missingBanner}>
-        <Text style={styles.missingText}>
-          {t('fe2.recommendation.missing_location', {
-            name: MISSING_LOCATION_MEMBER,
-            count: MOCK_MEETUP_MEMBERS.length,
-          })}
-        </Text>
-      </View>
+      {/* Missing Location Banner (only before live server data arrives) */}
+      {!hasServerData && !apiError && (
+        <View style={styles.missingBanner}>
+          <Text style={styles.missingText}>
+            {t('fe2.recommendation.missing_location', {
+              name: MISSING_LOCATION_MEMBER,
+              count: MOCK_MEETUP_MEMBERS.length,
+            })}
+          </Text>
+        </View>
+      )}
+
+      {apiError && processedPlaces.length > 0 && (
+        <View style={{ paddingHorizontal: 12, paddingTop: 8, gap: 6 }}>
+          <InlineAlert
+            tone="danger"
+            title={t(`errors.${apiError.code}.title` as any)}
+            message={t(`errors.${apiError.code}.description` as any)}
+          />
+          <TouchableOpacity
+            style={[styles.rerunBtn, { backgroundColor: colors.primary }]}
+            onPress={handleRetryLoad}
+          >
+            <RefreshCw size={14} color="#fff" />
+            <Text style={styles.rerunBtnText}>{t('fe2.common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Control Bar: View Mode Segment + Filter/Policy Trigger */}
       <View style={styles.controlBar}>
@@ -410,6 +501,8 @@ export default function RecommendationScreen() {
             <PlaceCardSkeleton />
             <PlaceCardSkeleton />
           </View>
+        ) : apiError && processedPlaces.length === 0 ? (
+          <ErrorState error={apiError} onRetry={handleRetryLoad} />
         ) : (
           <FlatList
             data={paginatedPlaces}
@@ -417,7 +510,14 @@ export default function RecommendationScreen() {
             renderItem={({ item }) => (
               <PlaceCard
                 place={item}
-                scheduledTimeText="19:00"
+                scheduledTimeText={
+                  activeMeetupDetail?.scheduledAt
+                    ? new Date(activeMeetupDetail.scheduledAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '19:00'
+                }
                 weatherPolicy={weatherPolicy}
                 routingPreference={effectiveRoutingPreference}
                 currentViewerName={currentViewerMember.name}

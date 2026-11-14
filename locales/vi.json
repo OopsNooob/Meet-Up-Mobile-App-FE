@@ -63,7 +63,16 @@
       "send_directions": "🗺 Mở Google Maps",
       "error": "Lỗi",
       "maps_open_error": "Không thể mở ứng dụng bản đồ",
-      "you": "Bạn"
+      "you": "Bạn",
+      "network_error_banner": "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.",
+      "sync_failed": "Không thể đồng bộ dữ liệu",
+      "retrying": "Đang thử lại...",
+      "location_share_text": "📍 Vị trí hiện tại ({{coords}}): {{url}}",
+      "loading_data": "Đang tải dữ liệu...",
+      "run_stale_banner": "Gợi ý hiện tại đã cũ so với vị trí hoặc tùy chọn mới. Nhấn Làm mới để cập nhật.",
+      "replay_audit_title": "Kiểm tra lại kết quả",
+      "replay_consistent_msg": "Thứ hạng gợi ý nhất quán với dữ liệu phiên tính toán.",
+      "replay_failed_msg": "Không thể kiểm tra lại kết quả lúc này."
     },
     "location": {
       "screen_title": "Cài đặt vị trí",

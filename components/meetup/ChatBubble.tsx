@@ -50,6 +50,7 @@ export type ChatLocationData = {
 
 export type ChatMessage = {
   id: string;
+  clientMessageId?: string;
   userId: string;
   userName: string;
   text: string;

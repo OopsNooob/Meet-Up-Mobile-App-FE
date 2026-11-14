@@ -1,9 +1,21 @@
 import { create } from 'zustand';
+import i18n from '@/locales/i18n';
+import type { AppError } from '@/types/async';
+import { recommendationService } from '@/services/recommendationService';
+import type {
+  MeetupDetailResponse,
+  RecommendationFeedbackEventType,
+  RecommendationResultResponse,
+  RecommendationRunResponse,
+  ReplayRecommendationRunResponse,
+} from '@/types/api';
+import { generateUuidV4 } from '@/utils/uuid';
 import type {
   FeedbackActionType,
   FeedbackLogEntry,
   OpeningFilterMode,
   RecommendationContextStatus,
+  RecommendationExplanationFact,
   RecommendationPlaceItem,
   RecommendationWarningCode,
   RoutingPreference,
@@ -11,6 +23,120 @@ import type {
   ViewerFeature,
   WeatherPolicy,
 } from '@/types/recommendation';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function mapApiResultToPlaceItem(
+  result: RecommendationResultResponse,
+  meetup: MeetupDetailResponse,
+  viewerUserId: string
+): RecommendationPlaceItem {
+  const warnings = (result.explanation.warnings ?? []) as RecommendationWarningCode[];
+  const facts = (result.explanation.facts ?? []) as RecommendationExplanationFact[];
+  const placeId = result.recommendationPlaceId ?? result.candidate.providerPlaceId;
+
+  const probFact = facts.find((f) => f.unit === 'PROBABILITY_0_1' && typeof f.value === 'number');
+  const openEv = result.openingEvidence ?? {};
+  const closeEv = result.closingEvidence ?? {};
+
+  const memberEtas = result.memberEtas.map((m) => ({
+    participantId: m.participantId,
+    name:
+      m.participantId === viewerUserId
+        ? i18n.t('fe2.common.you')
+        : `#${m.participantId.slice(0, 6)}`,
+    etaSeconds: m.etaSeconds,
+    staticDurationSeconds: m.etaSeconds,
+    distanceMeters: 0,
+    travelMode: 'TWO_WHEELER' as TravelMode,
+    routeStatus: 'OK' as const,
+  }));
+
+  const viewerEta =
+    result.viewerFeature && memberEtas.find((m) => m.participantId === result.viewerFeature?.participantId);
+  const viewerParticipantId = result.viewerFeature?.participantId ?? viewerUserId;
+  const viewerFeature: ViewerFeature = {
+    participantId: viewerParticipantId,
+    etaSeconds: viewerEta ? viewerEta.etaSeconds : result.avgEtaSeconds,
+    staticDurationSeconds: viewerEta ? viewerEta.staticDurationSeconds : result.avgEtaSeconds,
+    distanceMeters: 0,
+    travelMode: 'TWO_WHEELER',
+    matchedTags: [],
+    travelUtility: result.viewerFeature?.travelUtility ?? 0,
+    preferenceUtility: result.viewerFeature?.preferenceUtility ?? 0,
+    placeQualityUtility: result.viewerFeature?.placeQualityUtility ?? 0,
+    memberUtility: result.viewerFeature?.memberUtility ?? 0,
+  };
+
+  const summaryCode =
+    result.explanation.summaryCode === 'MIN_SUM_RANKED' ||
+    result.explanation.summaryCode === 'MIN_MAX_RANKED'
+      ? result.explanation.summaryCode
+      : 'FAIR_PARETO_RANKED';
+
+  return {
+    placeId,
+    canonicalCandidateKey: result.candidate.canonicalCandidateKey,
+    providerPlaceId: result.candidate.providerPlaceId,
+    rank: result.rank,
+    name: result.candidate.name,
+    address: result.candidate.formattedAddress ?? '',
+    categories: result.candidate.categories ?? [meetup.placeType || 'cafe'],
+    rating: result.candidate.rating0To5 ?? null,
+    userRatingCount: result.candidate.userRatingCount ?? null,
+    scaleLabel: 'exact',
+    lat: result.candidate.latitude ?? 10.7769,
+    lng: result.candidate.longitude ?? 106.7009,
+    avgEtaSeconds: result.avgEtaSeconds,
+    maxEtaSeconds: result.maxEtaSeconds,
+    etaRangeSeconds: result.etaRangeSeconds,
+    paretoLevel: 1,
+    inclusionProbability: typeof probFact?.value === 'number' ? probFact.value : null,
+    voteCount: result.voteCount ?? 0,
+    opening: {
+      openNow: typeof openEv.openNow === 'boolean' ? openEv.openNow : null,
+      statusAtScheduled: result.scheduledOpeningStatus ?? 'UNKNOWN',
+      source: warnings.includes('OPENING_FROM_REGULAR_HOURS') ? 'REGULAR' : 'CURRENT',
+      fallbackToRegularHours: warnings.includes('OPENING_FROM_REGULAR_HOURS'),
+      closingStatus: warnings.includes('CLOSING_SOON_AT_MEETUP_TIME')
+        ? 'CLOSING_SOON'
+        : typeof closeEv.secondsUntilClose === 'number'
+          ? 'OK'
+          : 'UNKNOWN',
+      nextClosingAt: typeof closeEv.nextClosingAt === 'string' ? closeEv.nextClosingAt : null,
+      secondsUntilClose:
+        typeof closeEv.secondsUntilClose === 'number' ? closeEv.secondsUntilClose : null,
+      hoursKeys: [],
+    },
+    weather: {
+      outdoorExposure: 'UNKNOWN',
+      dataStatus: warnings.includes('WEATHER_DATA_UNAVAILABLE')
+        ? 'UNAVAILABLE'
+        : warnings.includes('WEATHER_OUT_OF_RANGE')
+          ? 'OUT_OF_RANGE'
+          : 'AVAILABLE',
+      conditionCode: 'CLEAR',
+      temperatureCelsius: null,
+      precipitationProbabilityPct: null,
+      windSpeedKmh: null,
+      hasWeatherWarning: warnings.includes('BAD_WEATHER_OUTDOOR'),
+      ...(warnings.includes('BAD_WEATHER_OUTDOOR')
+        ? { warningCode: 'BAD_WEATHER_OUTDOOR' as const }
+        : {}),
+    },
+    memberEtas,
+    viewerFeaturesByMember: {
+      [viewerParticipantId]: viewerFeature,
+      u1: viewerFeature,
+    },
+    explanation: {
+      summaryCode,
+      facts,
+      warnings,
+      aiSummaryKey: '',
+    },
+  };
+}
 
 export type SortOption = 'rank' | 'avgEta' | 'maxEta' | 'rating';
 
@@ -913,6 +1039,14 @@ function makeUuidLike(prefix: string): string {
 }
 
 interface RecommendationState {
+  // Server sync state
+  activeMeetupId: string | null;
+  activeMeetupDetail: MeetupDetailResponse | null;
+  apiError: AppError | null;
+  isApiLoading: boolean;
+  hasServerData: boolean;
+  impressedCandidateKeys: string[];
+
   // Run & Temporal Context (FE-23)
   runId: string;
   scheduledAtSnapshot: string;
@@ -946,11 +1080,39 @@ interface RecommendationState {
   basePlaces: RecommendationPlaceItem[];
 
   // Actions
+  clearApiError: () => void;
   setOpeningFilter: (mode: OpeningFilterMode) => void;
   setSortBy: (sort: SortOption) => void;
   setWeatherPolicy: (policy: WeatherPolicy) => void;
   setMemberTravelMode: (participantId: string, mode: TravelMode) => void;
   setCurrentViewerId: (viewerId: string) => void;
+
+  // Real Backend API Actions
+  loadRecommendationsForMeetup: (meetupId: string, runId?: string) => Promise<boolean>;
+  refreshRecommendationRun: (meetupId: string) => Promise<boolean>;
+  castVoteOnServer: (
+    meetupId: string,
+    canonicalCandidateKey: string,
+    rank?: number
+  ) => Promise<boolean>;
+  finalizeOnServer: (
+    meetupId: string,
+    canonicalCandidateKey?: string,
+    rank?: number
+  ) => Promise<boolean>;
+  toggleFavoriteOnServer: (canonicalCandidateKey: string, rank?: number) => Promise<boolean>;
+  sendImpressionToServer: (
+    meetupId: string,
+    canonicalCandidateKey: string,
+    rank: number
+  ) => Promise<void>;
+  sendFeedbackToServer: (
+    meetupId: string,
+    eventType: RecommendationFeedbackEventType,
+    canonicalCandidateKey?: string,
+    rank?: number
+  ) => Promise<void>;
+  replayRunOnServer: (meetupId: string) => Promise<ReplayRecommendationRunResponse | null>;
 
   // Scenario Toggles (QoL Demo Tools)
   toggleStaleContextScenario: () => void;
@@ -973,6 +1135,13 @@ interface RecommendationState {
 }
 
 export const useRecommendationStore = create<RecommendationState>((set, get) => ({
+  activeMeetupId: null,
+  activeMeetupDetail: null,
+  apiError: null,
+  isApiLoading: false,
+  hasServerData: false,
+  impressedCandidateKeys: [],
+
   runId: 'run-7f9a2c01-b84e-4d12',
   scheduledAtSnapshot: '2026-11-05T19:00:00+07:00',
   currentMeetupScheduledAt: '2026-11-05T19:00:00+07:00',
@@ -1002,6 +1171,320 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
   simulateSilentFeedbackError: false,
 
   basePlaces: INITIAL_PLACES,
+
+  clearApiError: () => set({ apiError: null }),
+
+  loadRecommendationsForMeetup: async (meetupId: string, explicitRunId?: string) => {
+    const prev = get();
+    const isSameMeetup = prev.activeMeetupId === meetupId;
+    set({
+      isApiLoading: true,
+      apiError: null,
+      activeMeetupId: meetupId,
+      ...(isSameMeetup
+        ? {}
+        : {
+            basePlaces: [],
+            hasServerData: false,
+            votedCandidateKey: null,
+            finalizedCandidateKey: null,
+          }),
+    });
+    try {
+      const [meetup, favorites] = await Promise.all([
+        recommendationService.getMeetupDetail(meetupId),
+        recommendationService.listFavorites().catch(() => []),
+      ]);
+
+      const state = get();
+      const candidateRunId =
+        explicitRunId && UUID_REGEX.test(explicitRunId)
+          ? explicitRunId
+          : meetup.chosenRunId ??
+            (state.activeMeetupId === meetupId && UUID_REGEX.test(state.runId)
+              ? state.runId
+              : undefined);
+
+      let run: RecommendationRunResponse;
+      if (candidateRunId) {
+        run = await recommendationService.getRun(meetupId, candidateRunId);
+      } else {
+        const radiusMeters = Math.min(10000, Math.max(100, meetup.searchRadiusM || 5000));
+        const category = /^[a-z][a-z0-9_]{0,99}$/.test(meetup.placeType || '')
+          ? meetup.placeType
+          : 'cafe';
+        run = await recommendationService.createRun(meetupId, {
+          topK: 5,
+          filters: {
+            categories: [category],
+            openingFilter: state.openingFilter,
+            radiusMeters,
+          },
+        });
+      }
+
+      const viewerParticipantId =
+        run.results.find((r) => r.viewerFeature)?.viewerFeature?.participantId ??
+        state.currentViewerId;
+      const mappedPlaces = run.results.map((r) =>
+        mapApiResultToPlaceItem(r, meetup, viewerParticipantId)
+      );
+
+      const finalizedPlace = meetup.chosenRecommendationPlaceId
+        ? mappedPlaces.find(
+            (p) => p.placeId === meetup.chosenRecommendationPlaceId
+          )?.canonicalCandidateKey ?? null
+        : null;
+
+      set({
+        activeMeetupId: meetupId,
+        activeMeetupDetail: meetup,
+        runId: run.id,
+        lastSyncedRunId: run.id,
+        scheduledAtSnapshot: run.scheduledAtSnapshot,
+        currentMeetupScheduledAt: meetup.scheduledAt,
+        contextStatus: run.contextStatus,
+        openingFilter: run.openingFilter,
+        requestedRoutingPreference: run.routingPreferenceRequested,
+        effectiveRoutingPreference: run.routingPreferenceEffective,
+        weatherPolicy: run.weatherPolicyEffective,
+        currentViewerId: viewerParticipantId,
+        basePlaces: mappedPlaces,
+        finalizedCandidateKey: finalizedPlace,
+        favoriteCandidateKeys: favorites.map((f) => f.canonicalCandidateKey),
+        isApiLoading: false,
+        hasServerData: true,
+        apiError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isApiLoading: false,
+        apiError: err as AppError,
+      });
+      return false;
+    }
+  },
+
+  refreshRecommendationRun: async (meetupId: string) => {
+    set({ isApiLoading: true, apiError: null, activeMeetupId: meetupId });
+    try {
+      const meetup = await recommendationService.getMeetupDetail(meetupId);
+      const state = get();
+      const radiusMeters = Math.min(10000, Math.max(100, meetup.searchRadiusM || 5000));
+      const category = /^[a-z][a-z0-9_]{0,99}$/.test(meetup.placeType || '')
+        ? meetup.placeType
+        : 'cafe';
+      const run = await recommendationService.createRun(meetupId, {
+        topK: 5,
+        filters: {
+          categories: [category],
+          openingFilter: state.openingFilter,
+          radiusMeters,
+        },
+      });
+
+      const viewerParticipantId =
+        run.results.find((r) => r.viewerFeature)?.viewerFeature?.participantId ??
+        state.currentViewerId;
+      const mappedPlaces = run.results.map((r) =>
+        mapApiResultToPlaceItem(r, meetup, viewerParticipantId)
+      );
+
+      set({
+        activeMeetupId: meetupId,
+        activeMeetupDetail: meetup,
+        runId: run.id,
+        lastSyncedRunId: run.id,
+        scheduledAtSnapshot: run.scheduledAtSnapshot,
+        currentMeetupScheduledAt: meetup.scheduledAt,
+        contextStatus: run.contextStatus,
+        openingFilter: run.openingFilter,
+        requestedRoutingPreference: run.routingPreferenceRequested,
+        effectiveRoutingPreference: run.routingPreferenceEffective,
+        weatherPolicy: run.weatherPolicyEffective,
+        currentViewerId: viewerParticipantId,
+        basePlaces: mappedPlaces,
+        votedCandidateKey: null,
+        finalizedCandidateKey: null,
+        isApiLoading: false,
+        hasServerData: true,
+        apiError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isApiLoading: false,
+        apiError: err as AppError,
+      });
+      return false;
+    }
+  },
+
+  castVoteOnServer: async (meetupId: string, canonicalCandidateKey: string, rank?: number) => {
+    const state = get();
+    const place = state.basePlaces.find(
+      (p) => p.canonicalCandidateKey === canonicalCandidateKey
+    );
+    if (!place || !UUID_REGEX.test(state.runId)) {
+      return false;
+    }
+
+    try {
+      const res = await recommendationService.castVote(
+        meetupId,
+        state.runId,
+        place.placeId
+      );
+      const actionType: Exclude<FeedbackActionType, 'RecommendationShown'> =
+        state.votedCandidateKey ? 'VoteChanged' : 'PlaceVoted';
+      get().recordFeedbackEvent(actionType, canonicalCandidateKey, rank);
+
+      const prevVote = state.votedCandidateKey;
+      set({
+        votedCandidateKey: res.canonicalCandidateKey,
+        lastSyncedRunId: res.runId,
+        apiError: null,
+        basePlaces: state.basePlaces.map((p) => {
+          if (p.canonicalCandidateKey === res.canonicalCandidateKey) {
+            return { ...p, voteCount: res.voteCount };
+          }
+          if (prevVote && prevVote !== res.canonicalCandidateKey && p.canonicalCandidateKey === prevVote) {
+            return { ...p, voteCount: Math.max(0, p.voteCount - 1) };
+          }
+          return p;
+        }),
+      });
+      return true;
+    } catch (err) {
+      set({ apiError: err as AppError });
+      return false;
+    }
+  },
+
+  finalizeOnServer: async (
+    meetupId: string,
+    canonicalCandidateKey?: string,
+    rank?: number
+  ) => {
+    const state = get();
+    if (!UUID_REGEX.test(state.runId)) {
+      return false;
+    }
+    const targetPlace = canonicalCandidateKey
+      ? state.basePlaces.find((p) => p.canonicalCandidateKey === canonicalCandidateKey)
+      : undefined;
+
+    try {
+      const res = await recommendationService.finalizeMeetup(
+        meetupId,
+        state.runId,
+        targetPlace?.placeId
+      );
+      get().recordFeedbackEvent('MeetupPlaceSelected', res.canonicalCandidateKey, rank);
+      set({
+        finalizedCandidateKey: res.canonicalCandidateKey,
+        votedCandidateKey: res.canonicalCandidateKey,
+        lastSyncedRunId: res.runId,
+        apiError: null,
+        basePlaces: state.basePlaces.map((p) =>
+          p.canonicalCandidateKey === res.canonicalCandidateKey
+            ? { ...p, voteCount: res.voteCount }
+            : p
+        ),
+      });
+      return true;
+    } catch (err) {
+      set({ apiError: err as AppError });
+      return false;
+    }
+  },
+
+  toggleFavoriteOnServer: async (canonicalCandidateKey: string, rank?: number) => {
+    const state = get();
+    const isFav = state.favoriteCandidateKeys.includes(canonicalCandidateKey);
+    try {
+      if (!isFav) {
+        await recommendationService.addFavorite(canonicalCandidateKey);
+        get().recordFeedbackEvent('FavoriteAdded', canonicalCandidateKey, rank);
+        set({
+          favoriteCandidateKeys: [...state.favoriteCandidateKeys, canonicalCandidateKey],
+          apiError: null,
+        });
+      } else {
+        await recommendationService.removeFavorite(canonicalCandidateKey);
+        set({
+          favoriteCandidateKeys: state.favoriteCandidateKeys.filter(
+            (k) => k !== canonicalCandidateKey
+          ),
+          apiError: null,
+        });
+      }
+      return true;
+    } catch (err) {
+      set({ apiError: err as AppError });
+      return false;
+    }
+  },
+
+  sendImpressionToServer: async (
+    meetupId: string,
+    canonicalCandidateKey: string,
+    rank: number
+  ) => {
+    const state = get();
+    if (!UUID_REGEX.test(state.runId)) return;
+    const dedupKey = `${state.runId}:${canonicalCandidateKey}`;
+    if (state.impressedCandidateKeys.includes(dedupKey)) return;
+
+    set({
+      impressedCandidateKeys: [...state.impressedCandidateKeys, dedupKey],
+    });
+    try {
+      await recommendationService.recordImpression(meetupId, state.runId, {
+        eventId: generateUuidV4(),
+        canonicalCandidateKey,
+        rank,
+        shownAt: new Date().toISOString(),
+      });
+    } catch {
+      // Impressions are best-effort telemetry; do not disrupt UX
+    }
+  },
+
+  sendFeedbackToServer: async (
+    meetupId: string,
+    eventType: RecommendationFeedbackEventType,
+    canonicalCandidateKey?: string,
+    rank?: number
+  ) => {
+    const state = get();
+    if (eventType === 'NAVIGATION_OPENED' && canonicalCandidateKey) {
+      get().recordFeedbackEvent('NavigationOpened', canonicalCandidateKey, rank);
+    }
+    if (!UUID_REGEX.test(state.runId)) return;
+    try {
+      await recommendationService.recordFeedback(meetupId, state.runId, {
+        eventId: generateUuidV4(),
+        eventType,
+        ...(canonicalCandidateKey ? { canonicalCandidateKey } : {}),
+        occurredAt: new Date().toISOString(),
+      });
+    } catch {
+      // Post-display feedback errors are non-blocking
+    }
+  },
+
+  replayRunOnServer: async (meetupId: string) => {
+    const state = get();
+    if (!UUID_REGEX.test(state.runId)) return null;
+    try {
+      return await recommendationService.replayRun(meetupId, state.runId);
+    } catch (err) {
+      set({ apiError: err as AppError });
+      return null;
+    }
+  },
 
   setOpeningFilter: (openingFilter) => set({ openingFilter }),
   setSortBy: (sortBy) => set({ sortBy }),
@@ -1278,14 +1761,37 @@ export function selectComputedRecommendations(state: RecommendationState): {
     });
 
     const etas = memberEtas.map((m) => m.etaSeconds);
-    const avgEtaSeconds = Math.round(etas.reduce((a, b) => a + b, 0) / etas.length);
-    const maxEtaSeconds = Math.max(...etas);
-    const minEtaSeconds = Math.min(...etas);
+    const avgEtaSeconds =
+      etas.length > 0
+        ? Math.round(etas.reduce((a, b) => a + b, 0) / etas.length)
+        : place.avgEtaSeconds;
+    const maxEtaSeconds = etas.length > 0 ? Math.max(...etas) : place.maxEtaSeconds;
+    const minEtaSeconds = etas.length > 0 ? Math.min(...etas) : place.avgEtaSeconds;
 
+    const firstViewerFeature = Object.values(place.viewerFeaturesByMember)[0];
+    const fallbackEmptyViewer: ViewerFeature = {
+      participantId: currentViewerId,
+      etaSeconds: avgEtaSeconds,
+      staticDurationSeconds: avgEtaSeconds,
+      distanceMeters: 0,
+      travelMode: 'TWO_WHEELER',
+      matchedTags: [],
+      travelUtility: 0,
+      preferenceUtility: 0,
+      placeQualityUtility: 0,
+      memberUtility: 0,
+    };
     const rawViewer =
-      place.viewerFeaturesByMember[currentViewerId] ?? place.viewerFeaturesByMember.u1;
-    const viewerEtaItem =
-      memberEtas.find((m) => m.participantId === currentViewerId) ?? memberEtas[0];
+      place.viewerFeaturesByMember[currentViewerId] ??
+      place.viewerFeaturesByMember.u1 ??
+      firstViewerFeature ??
+      fallbackEmptyViewer;
+    const viewerEtaItem = memberEtas.find((m) => m.participantId === currentViewerId) ??
+      memberEtas[0] ?? {
+        etaSeconds: rawViewer.etaSeconds,
+        staticDurationSeconds: rawViewer.staticDurationSeconds,
+        travelMode: rawViewer.travelMode,
+      };
 
     // Điều chỉnh nhẹ travelUtility của viewer nếu đổi sang ô tô làm tăng ETA
     const travelPenalty =

@@ -1,8 +1,11 @@
 /**
  * FE-05 & FE-06 — Hook quản lý GPS permission và phát vị trí qua Socket
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import { locationService } from '@/services/locationService';
 import { useSocket } from './useSocket';
 import { usePrivacyStore } from '../store/usePrivacyStore';
 
@@ -24,10 +27,12 @@ export function useLocation() {
   const [permission, setPermission] = useState<PermissionStatus>('undetermined');
   const [location, setLocation] = useState<LocationState | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [syncError, setSyncError] = useState<AppError | null>(null);
   const { emit } = useSocket();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { settings, isEffectiveSharingActive } = usePrivacyStore();
+  const clearSyncError = useCallback(() => setSyncError(null), []);
 
   useEffect(() => {
     Location.getForegroundPermissionsAsync()
@@ -133,12 +138,24 @@ export function useLocation() {
       }
       const sample = await fetchRealSample();
       setLocation(sample);
+      const recordedAt = sample.updatedAt.toISOString();
       emit('location:update', {
         latitude: sample.lat,
         longitude: sample.lng,
         accuracy: sample.accuracy,
-        recordedAt: sample.updatedAt.toISOString(),
+        recordedAt,
       });
+      try {
+        await locationService.publishLocation({
+          latitude: sample.lat,
+          longitude: sample.lng,
+          accuracy: sample.accuracy,
+          recordedAt,
+        });
+        setSyncError(null);
+      } catch (err) {
+        setSyncError(toApiError(err));
+      }
     };
 
     void publishLocation();
@@ -154,6 +171,8 @@ export function useLocation() {
     setPermission,
     location,
     isSharing,
+    syncError,
+    clearSyncError,
     requestPermission,
     startSharing,
     stopSharing,

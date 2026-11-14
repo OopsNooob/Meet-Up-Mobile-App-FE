@@ -63,7 +63,16 @@
       "send_directions": "🗺 Open Google Maps",
       "error": "Error",
       "maps_open_error": "Could not open maps application",
-      "you": "You"
+      "you": "You",
+      "network_error_banner": "Unable to connect to the server. Please check your connection and try again.",
+      "sync_failed": "Failed to sync data",
+      "retrying": "Retrying...",
+      "location_share_text": "📍 Current location ({{coords}}): {{url}}",
+      "loading_data": "Loading data...",
+      "run_stale_banner": "Recommendations are outdated for the latest locations or preferences. Tap Refresh to update.",
+      "replay_audit_title": "Verify ranking",
+      "replay_consistent_msg": "Recommendation ranking matches the recorded calculation snapshot.",
+      "replay_failed_msg": "Could not verify recommendation consistency right now."
     },
     "location": {
       "screen_title": "Location Settings",
