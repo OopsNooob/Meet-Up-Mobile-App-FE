@@ -8,6 +8,7 @@ import {
   Flag,
   Layers,
   LocateOff,
+  LogOut,
   Mail,
   MapPinOff,
   Navigation,
@@ -15,6 +16,7 @@ import {
   PencilLine,
   Radio,
   Target,
+  UserMinus,
   Vote,
   WifiOff,
   XCircle,
@@ -35,7 +37,7 @@ export type StatusKind =
   | 'gps_off'
   | RouteStrategy
   | `meetup_${MeetupStatus}`
-  | `member_${Extract<MeetupMemberStatus, 'invited' | 'accepted' | 'declined'>}`;
+  | `member_${MeetupMemberStatus}`;
 
 const STATUS_CONFIG: Record<StatusKind, { tone: Tone; icon: LucideIcon }> = {
   live: { tone: 'success', icon: Radio },
@@ -61,6 +63,8 @@ const STATUS_CONFIG: Record<StatusKind, { tone: Tone; icon: LucideIcon }> = {
   member_invited: { tone: 'info', icon: Mail },
   member_accepted: { tone: 'success', icon: CheckCircle2 },
   member_declined: { tone: 'danger', icon: XCircle },
+  member_left: { tone: 'neutral', icon: LogOut },
+  member_removed: { tone: 'neutral', icon: UserMinus },
 };
 
 export interface StatusLabelProps {

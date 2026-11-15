@@ -1,35 +1,174 @@
-import { StyleSheet, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { PlaceholderScreen, StatusLabel } from '@/components/common';
+import { Ban, Pencil } from 'lucide-react-native';
+import { Button, ConfirmDialog, InlineAlert, LoadingState, Screen, useToast } from '@/components/common';
+import { MeetupErrorState } from '@/components/meetup/MeetupErrorState';
+import { MeetupFeatureLinks } from '@/components/meetup/MeetupFeatureLinks';
+import { MeetupInfoCard } from '@/components/meetup/MeetupInfoCard';
+import { MeetupMembersSection } from '@/components/meetup/MeetupMembersSection';
+import { canCancelMeetup, canEditMeetup, isMeetupActive, isMeetupOrganizer } from '@/constants/meetup';
 import { routes, type MeetupRouteParams } from '@/constants/routes';
+import { useMeetupDetail } from '@/hooks/useMeetupDetail';
+import { useMeetupMembers } from '@/hooks/useMeetupMembers';
+import { useMeetupRealtime } from '@/hooks/useMeetupRealtime';
+import { useTheme } from '@/hooks/useTheme';
+import { meetupService, toMeetupError } from '@/services/meetupService';
+import { useAuthStore } from '@/store/useAuthStore';
 import { spacing } from '@/theme';
+import type { MeetupDetail } from '@/types/meetup';
+import { formatMeetupDateTime, getMeetupErrorMessage } from '@/utils/meetup';
 
-// TODO FE-07: chi tiết meetup — thành viên, trạng thái, sửa/hủy (ConfirmDialog).
 export default function MeetupDetailScreen() {
   const { t } = useTranslation();
+  const { colors } = useTheme();
+  const toast = useToast();
   const { meetupId } = useLocalSearchParams<MeetupRouteParams>();
+  const myId = useAuthStore((s) => s.user?.id ?? null);
+  const { state, reload, refresh } = useMeetupDetail(meetupId);
+  const [refreshing, setRefreshing] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  const meetup = state.status === 'success' ? state.data : null;
+  const { members, organizer } = useMeetupMembers(meetup);
+
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focusedOnce.current) void refresh();
+      focusedOnce.current = true;
+    }, [refresh]),
+  );
+
+  useMeetupRealtime(meetupId, () => void refresh());
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    const error = await refresh();
+    setRefreshing(false);
+    if (error) toast.show(getMeetupErrorMessage(t, error), { tone: 'danger' });
+  };
+
+  const handleCancel = async () => {
+    if (!meetup) return;
+    try {
+      await meetupService.cancel(meetup.id);
+    } catch (err) {
+      const error = toMeetupError(err);
+      if (error.meetupCode === 'not_editable') void refresh();
+      throw { code: 'unknown', message: getMeetupErrorMessage(t, error) };
+    }
+    setConfirmCancel(false);
+    toast.show(t('meetup.toast.cancelled'), { tone: 'success' });
+    void refresh();
+  };
+
+  if (state.status === 'loading') {
+    return (
+      <Screen>
+        <LoadingState />
+      </Screen>
+    );
+  }
+  if (state.status !== 'success' || !meetup) {
+    return (
+      <Screen>
+        <MeetupErrorState error={state.status === 'error' ? state.error : undefined} onRetry={reload} />
+      </Screen>
+    );
+  }
+
+  const isOrganizer = isMeetupOrganizer(meetup, myId);
+  const canEdit = canEditMeetup(meetup, myId);
+  const canCancel = canCancelMeetup(meetup, myId);
+  const active = isMeetupActive(meetup.status);
 
   return (
-    <PlaceholderScreen
-      task="FE-07"
-      title={`${t('screens.meetup_detail')} #${meetupId}`}
-      links={[
-        { label: t('screens.meetup_edit'), href: routes.meetupEdit(meetupId) },
-        { label: t('screens.meetup_preferences'), href: routes.meetupPreferences(meetupId) },
-        { label: t('fe2.recommendation.screen_title'), href: routes.meetupRecommendations(meetupId) },
-        { label: t('screens.meetup_vote'), href: routes.meetupVote(meetupId) },
-        { label: t('fe2.chat.screen_title'), href: routes.meetupChat(meetupId) },
-      ]}
+    <Screen
+      scroll
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      footer={
+        canEdit || canCancel ? (
+          <View style={styles.footer}>
+            {canEdit && (
+              <Button
+                label={t('meetup.action.edit')}
+                icon={Pencil}
+                variant="secondary"
+                style={styles.flex}
+                onPress={() => router.push(routes.meetupEdit(meetup.id))}
+                testID="meetup-edit"
+              />
+            )}
+            {canCancel && (
+              <Button
+                label={t('meetup.action.cancel')}
+                icon={Ban}
+                variant="danger"
+                style={styles.flex}
+                onPress={() => setConfirmCancel(true)}
+                testID="meetup-cancel"
+              />
+            )}
+          </View>
+        ) : undefined
+      }
     >
-      <View style={styles.row}>
-        <StatusLabel kind="meetup_inviting" />
-        <StatusLabel kind="member_accepted" />
-      </View>
-    </PlaceholderScreen>
+      <StatusBanner meetup={meetup} isOrganizer={isOrganizer} />
+
+      <MeetupInfoCard meetup={meetup} organizer={organizer ?? { id: meetup.organizerId, name: t('meetup.member_unknown') }} isOrganizerMe={isOrganizer} />
+
+      <MeetupMembersSection members={members} />
+
+      {active && <MeetupFeatureLinks meetupId={meetup.id} />}
+
+      <ConfirmDialog
+        visible={confirmCancel}
+        title={t('meetup.cancel_confirm.title')}
+        message={t('meetup.cancel_confirm.message', { title: meetup.title })}
+        confirmLabel={t('meetup.cancel_confirm.confirm')}
+        cancelLabel={t('meetup.cancel_confirm.keep')}
+        tone="danger"
+        onCancel={() => setConfirmCancel(false)}
+        onConfirm={handleCancel}
+      />
+    </Screen>
   );
 }
 
+function StatusBanner({ meetup, isOrganizer }: { meetup: MeetupDetail; isOrganizer: boolean }) {
+  const { t, i18n } = useTranslation();
+  switch (meetup.status) {
+    case 'cancelled':
+      return (
+        <InlineAlert
+          tone="danger"
+          icon={Ban}
+          title={t('meetup.banner.cancelled_title')}
+          message={
+            meetup.cancelledAt
+              ? t('meetup.banner.cancelled_at', { time: formatMeetupDateTime(meetup.cancelledAt, i18n.language) })
+              : t('meetup.banner.cancelled_message')
+          }
+        />
+      );
+    case 'selected':
+      return (
+        <InlineAlert
+          tone="success"
+          title={t('meetup.banner.selected_title')}
+          message={isOrganizer ? t('meetup.banner.selected_organizer') : t('meetup.banner.selected_message')}
+        />
+      );
+    case 'finished':
+      return <InlineAlert tone="info" title={t('meetup.banner.finished_title')} message={t('meetup.banner.finished_message')} />;
+    default:
+      return null;
+  }
+}
+
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  footer: { flexDirection: 'row', gap: spacing.sm },
+  flex: { flex: 1 },
 });

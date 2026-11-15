@@ -35,7 +35,14 @@
     "confirm_password_required": "Vui lòng nhập lại mật khẩu",
     "confirm_password_mismatch": "Mật khẩu xác nhận không khớp",
     "display_name_required": "Vui lòng nhập tên hiển thị",
-    "display_name_too_long": "Tên hiển thị tối đa {{max}} ký tự"
+    "display_name_too_long": "Tên hiển thị tối đa {{max}} ký tự",
+    "meetup_title_required": "Vui lòng nhập tên meetup",
+    "meetup_title_too_long": "Tên meetup tối đa {{max}} ký tự",
+    "meetup_time_required": "Vui lòng chọn thời gian",
+    "meetup_time_too_soon": "Thời gian gặp phải sau hiện tại ít nhất {{minutes}} phút",
+    "meetup_place_type_required": "Vui lòng chọn loại địa điểm",
+    "meetup_radius_required": "Vui lòng chọn bán kính tìm địa điểm",
+    "meetup_invitees_required": "Vui lòng mời ít nhất 1 người bạn"
   },
   "tabs": {
     "map": "Bản đồ",
@@ -45,7 +52,104 @@
   },
   "meetup": {
     "create": "Tạo Meetup",
-    "list_empty": "Chưa có meetup nào."
+    "list_empty": "Chưa có meetup nào.",
+    "member_unknown": "Thành viên",
+    "back_to_list": "Về danh sách",
+    "edit_choosing_warning": "Nhóm đang chọn địa điểm. Đổi giờ, loại hoặc bán kính có thể làm kết quả gợi ý hiện tại không còn đúng.",
+    "place_types": {
+      "cafe": "Quán cà phê",
+      "restaurant": "Nhà hàng",
+      "bar": "Quán bar",
+      "movie_theater": "Rạp phim",
+      "shopping_mall": "Trung tâm thương mại",
+      "park": "Công viên",
+      "bowling_alley": "Bowling"
+    },
+    "form": {
+      "title": "Tên meetup",
+      "title_placeholder": "VD: Cà phê cuối tuần",
+      "scheduled_at": "Thời gian gặp",
+      "scheduled_at_hint": "Chọn thời điểm sau hiện tại ít nhất {{minutes}} phút",
+      "place_type": "Loại địa điểm",
+      "radius": "Bán kính tìm địa điểm",
+      "radius_hint": "Gợi ý địa điểm nằm trong bán kính này quanh vị trí của nhóm.",
+      "members": "Thành viên",
+      "members_selected": "Đã chọn {{count}} người",
+      "members_more": "+{{count}} người khác",
+      "members_hint": "Không giới hạn số người tham gia.",
+      "pick_members": "Chọn bạn bè",
+      "pick_members_done": "Xong",
+      "remove_member": "Bỏ {{name}}",
+      "friends_load_failed": "Không tải được danh sách bạn bè",
+      "no_friends_title": "Bạn chưa có bạn bè nào",
+      "no_friends_message": "Kết bạn trước để mời vào meetup.",
+      "fix_errors": "Vui lòng kiểm tra lại các trường được đánh dấu.",
+      "submit_failed": "Chưa lưu được meetup",
+      "submit_create": "Tạo meetup",
+      "submit_edit": "Lưu thay đổi"
+    },
+    "detail": {
+      "scheduled_at": "Thời gian",
+      "place_type": "Loại địa điểm",
+      "radius": "Bán kính tìm",
+      "invitation_deadline": "Hạn phản hồi lời mời",
+      "organizer": "Người tạo",
+      "organizer_me": "{{name}} (bạn)",
+      "members_title": "Thành viên ({{count}})",
+      "members_summary": "{{accepted}} tham gia · {{invited}} đang chờ · {{declined}} từ chối",
+      "members_empty": "Chưa có thành viên",
+      "members_show_all": "Xem tất cả {{count}} thành viên",
+      "members_collapse": "Thu gọn",
+      "role_organizer": "Người tạo",
+      "role_me": "Bạn",
+      "activities_title": "Hoạt động của nhóm"
+    },
+    "banner": {
+      "cancelled_title": "Meetup đã bị hủy",
+      "cancelled_message": "Mọi thao tác trên meetup này đã bị khóa.",
+      "cancelled_at": "Đã hủy lúc {{time}}. Mọi thao tác trên meetup này đã bị khóa.",
+      "selected_title": "Đã chốt địa điểm",
+      "selected_message": "Meetup đã chốt, không thể sửa thông tin nữa.",
+      "selected_organizer": "Meetup đã chốt nên không thể sửa. Bạn vẫn có thể hủy meetup nếu cần.",
+      "finished_title": "Meetup đã kết thúc",
+      "finished_message": "Meetup này đã diễn ra."
+    },
+    "action": {
+      "edit": "Sửa",
+      "cancel": "Hủy meetup"
+    },
+    "cancel_confirm": {
+      "title": "Hủy meetup?",
+      "message": "\"{{title}}\" sẽ bị hủy với tất cả thành viên. Không thể hoàn tác.",
+      "confirm": "Hủy meetup",
+      "keep": "Không"
+    },
+    "edit_locked": {
+      "title": "Không thể sửa meetup {{status}}",
+      "not_organizer_title": "Bạn không phải người tạo",
+      "back_to_detail": "Về chi tiết meetup"
+    },
+    "toast": {
+      "created": "Đã tạo meetup và gửi lời mời",
+      "updated": "Đã lưu thay đổi",
+      "cancelled": "Đã hủy meetup"
+    },
+    "list": {
+      "empty_description": "Tạo meetup và mời bạn bè cùng chọn chỗ gặp.",
+      "organizer_badge": "Bạn tạo",
+      "within": "trong {{radius}}"
+    },
+    "errors": {
+      "meetup_not_found": "Meetup không tồn tại hoặc đã bị xóa.",
+      "not_found_title": "Không tìm thấy meetup",
+      "not_member_title": "Không có quyền xem",
+      "not_member": "Bạn không phải thành viên của meetup này.",
+      "not_organizer": "Chỉ người tạo meetup mới được thực hiện thao tác này.",
+      "not_editable": "Meetup đã chốt, đã hủy hoặc đã kết thúc nên không thể thay đổi.",
+      "invalid_schedule": "Thời gian gặp không hợp lệ hoặc đã qua.",
+      "invitee_not_friend": "Có người được mời không còn là bạn bè của bạn.",
+      "partial_saved": "Một số thay đổi đã được lưu, phần còn lại chưa lưu được:"
+    }
   },
   "fe2": {
     "common": {
@@ -575,7 +679,9 @@
     "meetup_finished": "Đã kết thúc",
     "member_invited": "Đã mời",
     "member_accepted": "Tham gia",
-    "member_declined": "Từ chối"
+    "member_declined": "Từ chối",
+    "member_left": "Đã rời",
+    "member_removed": "Đã bị xóa"
   },
   "errors": {
     "offline": {
