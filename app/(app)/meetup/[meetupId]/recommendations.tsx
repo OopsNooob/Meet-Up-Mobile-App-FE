@@ -23,6 +23,8 @@ import {
   Navigation,
   RefreshCw,
 } from 'lucide-react-native';
+import { useFriends } from '@/hooks/useFriends';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { useSocket } from '@/hooks/useSocket';
@@ -57,10 +59,15 @@ export default function RecommendationScreen() {
   }>();
   const { status: socketStatus, on, off, joinMeetup } = useSocket();
 
+  const { friends } = useFriends();
+  const user = useAuthStore((s) => s.user);
   const storeState = useRecommendationStore();
   const {
     runId,
     activeMeetupDetail,
+    meetupMembers,
+    missingLocationMemberNames,
+    scheduledAtSnapshot,
     apiError,
     isApiLoading,
     hasServerData,
@@ -73,6 +80,9 @@ export default function RecommendationScreen() {
     currentViewerId,
     votedCandidateKey,
     finalizedCandidateKey,
+    setParticipantNames,
+    applyRealtimeVoteUpdate,
+    applyRealtimeMeetupFinalized,
     setOpeningFilter,
     setWeatherPolicy,
     setSortBy,
@@ -83,6 +93,21 @@ export default function RecommendationScreen() {
     recordImpressionIfNeeded,
     resetAllFiltersAndScenarios,
   } = storeState;
+
+  const participantNamesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const friend of friends) {
+      map[friend.user.id] = friend.user.name;
+    }
+    if (user?.id && user?.name) {
+      map[user.id] = user.name;
+    }
+    return map;
+  }, [friends, user]);
+
+  useEffect(() => {
+    setParticipantNames(participantNamesMap, user?.id);
+  }, [participantNamesMap, setParticipantNames, user?.id]);
 
   const { places: processedPlaces, runWarnings } = useMemo(
     () => selectComputedRecommendations(storeState),
@@ -124,22 +149,74 @@ export default function RecommendationScreen() {
       void loadRecommendationsForMeetup(meetupId, payload?.runId);
     };
 
-    on('RecommendationReady', handleMeetupEvent);
-    on('RecommendationReady.v1', handleMeetupEvent);
-    on('VoteUpdated', handleMeetupEvent);
-    on('VoteUpdated.v1', handleMeetupEvent);
-    on('MeetupFinalized', handleMeetupEvent);
-    on('MeetupFinalized.v1', handleMeetupEvent);
+    const handleVoteEvent = (payload: {
+      meetupId?: string;
+      runId?: string;
+      placeId?: string;
+      voteCount?: number;
+    }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      applyRealtimeVoteUpdate(payload);
+    };
+
+    const handleFinalizedEvent = (payload: {
+      meetupId?: string;
+      runId?: string;
+      placeId?: string;
+      canonicalCandidateKey?: string;
+    }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      applyRealtimeMeetupFinalized(payload);
+    };
+
+    const handleLocationEvent = (payload: {
+      meetupId?: string;
+      userId?: string;
+      ownerId?: string;
+    }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      const participants = useRecommendationStore.getState().activeMeetupDetail?.participants ?? [];
+      const changedUserId = payload?.userId ?? payload?.ownerId;
+      if (
+        changedUserId &&
+        participants.length > 0 &&
+        !participants.some((participant) => participant.userId === changedUserId)
+      ) {
+        return;
+      }
+      void loadRecommendationsForMeetup(meetupId);
+    };
+
+    const registeredEvents: Parameters<typeof off>[0][] = [];
+    const subscribe = <T,>(event: Parameters<typeof on<T>>[0], handler: (data: T) => void) => {
+      registeredEvents.push(event);
+      on(event, handler);
+    };
+
+    subscribe('RecommendationReady', handleMeetupEvent);
+    subscribe('RecommendationReady.v1', handleMeetupEvent);
+    subscribe('MeetupUpdated.v1', handleMeetupEvent);
+    subscribe('MeetupMemberChanged.v1', handleMeetupEvent);
+    subscribe('PreferenceUpdated.v1', handleMeetupEvent);
+    subscribe('VoteUpdated', handleVoteEvent);
+    subscribe('VoteUpdated.v1', handleVoteEvent);
+    subscribe('MeetupFinalized', handleFinalizedEvent);
+    subscribe('MeetupFinalized.v1', handleFinalizedEvent);
+    subscribe('location:updated', handleLocationEvent);
+    subscribe('LocationUpdated.v1', handleLocationEvent);
 
     return () => {
-      off('RecommendationReady');
-      off('RecommendationReady.v1');
-      off('VoteUpdated');
-      off('VoteUpdated.v1');
-      off('MeetupFinalized');
-      off('MeetupFinalized.v1');
+      registeredEvents.forEach((event) => off(event));
     };
-  }, [on, off, socketStatus, meetupId, loadRecommendationsForMeetup]);
+  }, [
+    on,
+    off,
+    socketStatus,
+    meetupId,
+    loadRecommendationsForMeetup,
+    applyRealtimeVoteUpdate,
+    applyRealtimeMeetupFinalized,
+  ]);
 
   // Trigger brief Skeleton shimmer when filter, sort, or travel mode changes
   const triggerFilterSkeleton = useCallback(() => {
@@ -266,12 +343,28 @@ export default function RecommendationScreen() {
     router.push(routes.placeExplanation(place.placeId, place.name))
   );
 
+  const displayedMembers = useMemo(
+    () => (hasServerData ? meetupMembers : MOCK_MEETUP_MEMBERS),
+    [hasServerData, meetupMembers]
+  );
+
   const currentViewerMember = useMemo(
     () =>
-      MOCK_MEETUP_MEMBERS.find((m) => m.participantId === currentViewerId) ??
-      MOCK_MEETUP_MEMBERS[0],
-    [currentViewerId]
+      displayedMembers.find((m) => m.participantId === currentViewerId) ??
+      displayedMembers[0],
+    [displayedMembers, currentViewerId]
   );
+
+  const scheduledTimeLabel = useMemo(() => {
+    const rawScheduledAt = activeMeetupDetail?.scheduledAt ?? scheduledAtSnapshot;
+    if (!rawScheduledAt) return '19:00';
+    const parsed = new Date(rawScheduledAt);
+    if (Number.isNaN(parsed.getTime())) return '19:00';
+    return parsed.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [activeMeetupDetail?.scheduledAt, scheduledAtSnapshot]);
 
   const sortLabel = useMemo(() => {
     if (sortBy === 'rank') return t('fe2.recommendation.sort_rank');
@@ -282,13 +375,25 @@ export default function RecommendationScreen() {
 
   const openingFilterPillLabel = useMemo(() => {
     if (openingFilter === 'OPEN_AT_SCHEDULED_TIME') {
-      return t('fe2.recommendation.filter_open_scheduled', { time: '19:00' });
+      return t('fe2.recommendation.filter_open_scheduled', { time: scheduledTimeLabel });
     }
     if (openingFilter === 'OPEN_AT_REQUEST_TIME') {
       return t('fe2.recommendation.filter_open_now');
     }
     return t('fe2.recommendation.filter_open_any');
-  }, [openingFilter, t]);
+  }, [openingFilter, scheduledTimeLabel, t]);
+
+  const mapInitialRegion = useMemo(() => {
+    const firstCoord =
+      displayedMembers[0] ??
+      processedPlaces.find((p) => p.lat !== 0 || p.lng !== 0);
+    return {
+      latitude: firstCoord?.lat ?? 10.7745,
+      longitude: firstCoord?.lng ?? 106.701,
+      latitudeDelta: 0.025,
+      longitudeDelta: 0.025,
+    };
+  }, [displayedMembers, processedPlaces]);
 
   return (
     <View style={styles.container}>
@@ -393,13 +498,15 @@ export default function RecommendationScreen() {
         </View>
       )}
 
-      {/* Missing Location Banner (only before live server data arrives) */}
-      {!hasServerData && !apiError && (
+      {/* Missing Location Banner */}
+      {!apiError && (!hasServerData || missingLocationMemberNames.length > 0) && (
         <View style={styles.missingBanner}>
           <Text style={styles.missingText}>
             {t('fe2.recommendation.missing_location', {
-              name: MISSING_LOCATION_MEMBER,
-              count: MOCK_MEETUP_MEMBERS.length,
+              name: hasServerData
+                ? missingLocationMemberNames.join(', ')
+                : MISSING_LOCATION_MEMBER,
+              count: hasServerData ? meetupMembers.length : MOCK_MEETUP_MEMBERS.length,
             })}
           </Text>
         </View>
@@ -510,17 +617,10 @@ export default function RecommendationScreen() {
             renderItem={({ item }) => (
               <PlaceCard
                 place={item}
-                scheduledTimeText={
-                  activeMeetupDetail?.scheduledAt
-                    ? new Date(activeMeetupDetail.scheduledAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : '19:00'
-                }
+                scheduledTimeText={scheduledTimeLabel}
                 weatherPolicy={weatherPolicy}
                 routingPreference={effectiveRoutingPreference}
-                currentViewerName={currentViewerMember.name}
+                currentViewerName={currentViewerMember?.name ?? t('fe2.common.you')}
                 isVoted={votedCandidateKey === item.canonicalCandidateKey}
                 isFinalized={finalizedCandidateKey === item.canonicalCandidateKey}
                 onPress={handlePlacePress}
@@ -571,16 +671,14 @@ export default function RecommendationScreen() {
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
-            initialRegion={{
-              latitude: 10.7745,
-              longitude: 106.701,
-              latitudeDelta: 0.025,
-              longitudeDelta: 0.025,
-            }}
+            initialRegion={mapInitialRegion}
           >
             {/* Member Markers */}
-            {MOCK_MEETUP_MEMBERS.map((m) => {
-              const displayName = m.name === 'Bạn' ? t('fe2.common.you') : m.name;
+            {displayedMembers.map((m) => {
+              const displayName =
+                m.name === 'Bạn' || m.participantId === currentViewerId
+                  ? t('fe2.common.you')
+                  : m.name;
               return (
                 <Marker
                   key={m.participantId}
@@ -588,7 +686,7 @@ export default function RecommendationScreen() {
                   title={`${t('fe2.recommendation.map_member_label')}: ${displayName}`}
                 >
                   <View style={styles.memberPin}>
-                    <Text style={styles.memberPinText}>{displayName[0]}</Text>
+                    <Text style={styles.memberPinText}>{(displayName[0] ?? '?').toUpperCase()}</Text>
                   </View>
                 </Marker>
               );

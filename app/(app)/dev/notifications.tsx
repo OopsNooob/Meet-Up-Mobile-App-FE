@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Bell, RefreshCw, BellOff, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { NotifType, scheduleMockNotification, useFCM } from '@/hooks/useFCM';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { recommendationService } from '@/services/recommendationService';
 import { InlineAlert } from '@/components/common/InlineAlert';
 import { InAppNotificationBanner } from '@/components/common/InAppNotificationBanner';
 import { routes } from '@/constants/routes';
@@ -40,6 +41,23 @@ export default function NotificationsTestScreen() {
 
   const deviceRegistered = Boolean(registeredDeviceId);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [targetMeetupId, setTargetMeetupId] = useState('meetup-1');
+
+  useEffect(() => {
+    let active = true;
+    recommendationService
+      .listMeetups({ limit: 1 })
+      .then((res) => {
+        const firstId = res.items?.[0]?.id;
+        if (active && firstId) {
+          setTargetMeetupId(firstId);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const [recentList, setRecentList] = useState<RecentNotifItem[]>([]);
   const [bannerInfo, setBannerInfo] = useState<{
     visible: boolean;
@@ -57,7 +75,6 @@ export default function NotificationsTestScreen() {
   }, 700);
 
   const navigateByType = useSinglePress((type?: NotifType) => {
-    const targetMeetupId = 'meetup-1';
     if (
       type === 'recommendation_ready' ||
       type === 'meetup_finalized' ||
@@ -85,7 +102,7 @@ export default function NotificationsTestScreen() {
   }, 400);
 
   const handleTest = useSinglePress((type: NotifType) => {
-    scheduleMockNotification(type, 'meetup-1');
+    scheduleMockNotification(type, targetMeetupId);
 
     const TITLES: Record<NotifType, { title: string; body: string }> = {
       meetup_invite: {

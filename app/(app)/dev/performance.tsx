@@ -16,6 +16,7 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 import { useRecommendationStore } from '@/store/useRecommendationStore';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { RecommendationScenarioModal } from '@/components/meetup/RecommendationScenarioModal';
+import { recommendationService } from '@/services/recommendationService';
 import { routes } from '@/constants/routes';
 
 export default function PerformanceScreen() {
@@ -30,6 +31,23 @@ export default function PerformanceScreen() {
   const [resetToast, setResetToast] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scenarioModalVisible, setScenarioModalVisible] = useState(false);
+  const [targetMeetupId, setTargetMeetupId] = useState('meetup-1');
+
+  useEffect(() => {
+    let active = true;
+    recommendationService
+      .listMeetups({ limit: 1 })
+      .then((res) => {
+        const firstId = res.items?.[0]?.id;
+        if (active && firstId) {
+          setTargetMeetupId(firstId);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const {
     resetAllFiltersAndScenarios,
@@ -59,7 +77,7 @@ export default function PerformanceScreen() {
   // Kịch bản 1: Mở gợi ý địa điểm cho buổi hẹn 19:00
   const handleScenario1 = useSinglePress(() => {
     resetAllFiltersAndScenarios();
-    router.push(routes.meetupRecommendations('meetup-1'));
+    router.push(routes.meetupRecommendations(targetMeetupId));
   }, 500);
 
   // Kịch bản 2: Xem thử đổi giờ hẹn & thời tiết mưa tại quán ngoài trời
@@ -69,7 +87,7 @@ export default function PerformanceScreen() {
       toggleStaleContextScenario();
     }
     toggleWeatherRelaxedScenario();
-    router.push(routes.meetupRecommendations('meetup-1'));
+    router.push(routes.meetupRecommendations(targetMeetupId));
   }, 500);
 
   // Kịch bản 3: Mở Bản đồ bạn bè (Chế độ vị trí xấp xỉ ~1.1km)

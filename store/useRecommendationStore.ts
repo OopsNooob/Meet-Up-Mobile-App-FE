@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import i18n from '@/locales/i18n';
 import type { AppError } from '@/types/async';
 import { recommendationService } from '@/services/recommendationService';
+import { locationService } from '@/services/locationService';
 import type {
+  CandidateSearchResponse,
   MeetupDetailResponse,
   RecommendationFeedbackEventType,
   RecommendationResultResponse,
@@ -26,25 +28,33 @@ import type {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+type CandidateSearchItem = CandidateSearchResponse['candidates'][number];
+
 function mapApiResultToPlaceItem(
   result: RecommendationResultResponse,
   meetup: MeetupDetailResponse,
-  viewerUserId: string
+  viewerUserId: string,
+  candidateDetailsByProviderId: Map<string, CandidateSearchItem>,
+  participantNamesById: Record<string, string>,
+  voteCountsByCandidateKey: Record<string, number>
 ): RecommendationPlaceItem {
   const warnings = (result.explanation.warnings ?? []) as RecommendationWarningCode[];
   const facts = (result.explanation.facts ?? []) as RecommendationExplanationFact[];
   const placeId = result.recommendationPlaceId ?? result.candidate.providerPlaceId;
+  const candDetail = candidateDetailsByProviderId.get(result.candidate.providerPlaceId);
 
   const probFact = facts.find((f) => f.unit === 'PROBABILITY_0_1' && typeof f.value === 'number');
   const openEv = result.openingEvidence ?? {};
   const closeEv = result.closingEvidence ?? {};
 
+  const resolveMemberName = (participantId: string) =>
+    participantId === viewerUserId
+      ? i18n.t('fe2.common.you')
+      : participantNamesById[participantId] ?? `#${participantId.slice(0, 6)}`;
+
   const memberEtas = result.memberEtas.map((m) => ({
     participantId: m.participantId,
-    name:
-      m.participantId === viewerUserId
-        ? i18n.t('fe2.common.you')
-        : `#${m.participantId.slice(0, 6)}`,
+    name: resolveMemberName(m.participantId),
     etaSeconds: m.etaSeconds,
     staticDurationSeconds: m.etaSeconds,
     distanceMeters: 0,
@@ -55,13 +65,27 @@ function mapApiResultToPlaceItem(
   const viewerEta =
     result.viewerFeature && memberEtas.find((m) => m.participantId === result.viewerFeature?.participantId);
   const viewerParticipantId = result.viewerFeature?.participantId ?? viewerUserId;
+  const rawMatchedTags = Array.isArray(result.viewerFeature?.matchedTags)
+    ? result.viewerFeature.matchedTags
+    : [];
+  const matchedTags: ViewerFeature['matchedTags'] = rawMatchedTags
+    .filter(
+      (tag): tag is { tagCode: string; level?: string; weight?: number } =>
+        Boolean(tag && typeof tag === 'object' && typeof (tag as { tagCode?: unknown }).tagCode === 'string')
+    )
+    .map((tag) => ({
+      tagCode: tag.tagCode,
+      level: tag.level === 'high' || tag.level === 'avoid' ? tag.level : ('normal' as const),
+      weight: typeof tag.weight === 'number' ? tag.weight : 1,
+    }));
+
   const viewerFeature: ViewerFeature = {
     participantId: viewerParticipantId,
     etaSeconds: viewerEta ? viewerEta.etaSeconds : result.avgEtaSeconds,
     staticDurationSeconds: viewerEta ? viewerEta.staticDurationSeconds : result.avgEtaSeconds,
     distanceMeters: 0,
     travelMode: 'TWO_WHEELER',
-    matchedTags: [],
+    matchedTags,
     travelUtility: result.viewerFeature?.travelUtility ?? 0,
     preferenceUtility: result.viewerFeature?.preferenceUtility ?? 0,
     placeQualityUtility: result.viewerFeature?.placeQualityUtility ?? 0,
@@ -74,27 +98,38 @@ function mapApiResultToPlaceItem(
       ? result.explanation.summaryCode
       : 'FAIR_PARETO_RANKED';
 
+  const openNow =
+    typeof candDetail?.openingHours?.openNow === 'boolean'
+      ? candDetail.openingHours.openNow
+      : typeof openEv.openNow === 'boolean'
+        ? openEv.openNow
+        : null;
+
   return {
     placeId,
     canonicalCandidateKey: result.candidate.canonicalCandidateKey,
     providerPlaceId: result.candidate.providerPlaceId,
     rank: result.rank,
     name: result.candidate.name,
-    address: result.candidate.formattedAddress ?? '',
-    categories: result.candidate.categories ?? [meetup.placeType || 'cafe'],
-    rating: result.candidate.rating0To5 ?? null,
+    address: candDetail?.formattedAddress ?? result.candidate.formattedAddress ?? '',
+    categories:
+      candDetail?.categories && candDetail.categories.length > 0
+        ? candDetail.categories
+        : (result.candidate.categories ?? [meetup.placeType || 'cafe']),
+    rating: candDetail?.rating ?? result.candidate.rating0To5 ?? null,
     userRatingCount: result.candidate.userRatingCount ?? null,
     scaleLabel: 'exact',
-    lat: result.candidate.latitude ?? 10.7769,
-    lng: result.candidate.longitude ?? 106.7009,
+    lat: candDetail?.latitude ?? result.candidate.latitude ?? 10.7769,
+    lng: candDetail?.longitude ?? result.candidate.longitude ?? 106.7009,
     avgEtaSeconds: result.avgEtaSeconds,
     maxEtaSeconds: result.maxEtaSeconds,
     etaRangeSeconds: result.etaRangeSeconds,
     paretoLevel: 1,
     inclusionProbability: typeof probFact?.value === 'number' ? probFact.value : null,
-    voteCount: result.voteCount ?? 0,
+    voteCount:
+      result.voteCount ?? voteCountsByCandidateKey[result.candidate.canonicalCandidateKey] ?? 0,
     opening: {
-      openNow: typeof openEv.openNow === 'boolean' ? openEv.openNow : null,
+      openNow,
       statusAtScheduled: result.scheduledOpeningStatus ?? 'UNKNOWN',
       source: warnings.includes('OPENING_FROM_REGULAR_HOURS') ? 'REGULAR' : 'CURRENT',
       fallbackToRegularHours: warnings.includes('OPENING_FROM_REGULAR_HOURS'),
@@ -135,6 +170,63 @@ function mapApiResultToPlaceItem(
       warnings,
       aiSummaryKey: '',
     },
+  };
+}
+
+async function fetchCandidateDetailsAndMemberLocations(
+  meetupId: string,
+  meetup: MeetupDetailResponse,
+  viewerParticipantId: string,
+  participantNamesById: Record<string, string>
+): Promise<{
+  candidateDetailsByProviderId: Map<string, CandidateSearchItem>;
+  meetupMembers: MeetupMemberProfile[];
+  missingLocationMemberNames: string[];
+}> {
+  const acceptedParticipants = meetup.participants.filter((p) => p.status === 'accepted');
+  const [candidateSearch, ...projectedLocations] = await Promise.all([
+    recommendationService.searchCandidates(meetupId).catch(() => null),
+    ...acceptedParticipants.map((p) =>
+      locationService
+        .getProjectedLocation({
+          ownerId: p.userId,
+          scope: 'meetup',
+          meetupId,
+        })
+        .catch(() => null)
+    ),
+  ]);
+
+  const candidateDetailsByProviderId = new Map<string, CandidateSearchItem>(
+    (candidateSearch?.candidates ?? []).map((c) => [c.providerPlaceId, c])
+  );
+
+  const meetupMembers: MeetupMemberProfile[] = [];
+  const missingLocationMemberNames: string[] = [];
+
+  acceptedParticipants.forEach((participant, index) => {
+    const loc = projectedLocations[index];
+    const displayName =
+      participant.userId === viewerParticipantId
+        ? i18n.t('fe2.common.you')
+        : participantNamesById[participant.userId] ?? `#${participant.userId.slice(0, 6)}`;
+    if (loc) {
+      meetupMembers.push({
+        participantId: participant.userId,
+        name: displayName,
+        lat: loc.latitude,
+        lng: loc.longitude,
+        isOrganizer: participant.userId === meetup.organizerId,
+      });
+    } else {
+      missingLocationMemberNames.push(displayName);
+    }
+  });
+
+  return {
+    candidateDetailsByProviderId,
+    meetupMembers,
+    missingLocationMemberNames,
   };
 }
 
@@ -1042,6 +1134,10 @@ interface RecommendationState {
   // Server sync state
   activeMeetupId: string | null;
   activeMeetupDetail: MeetupDetailResponse | null;
+  participantNamesById: Record<string, string>;
+  meetupMembers: MeetupMemberProfile[];
+  missingLocationMemberNames: string[];
+  voteCountsByCandidateKey: Record<string, number>;
   apiError: AppError | null;
   isApiLoading: boolean;
   hasServerData: boolean;
@@ -1081,6 +1177,19 @@ interface RecommendationState {
 
   // Actions
   clearApiError: () => void;
+  setParticipantNames: (namesById: Record<string, string>, viewerUserId?: string) => void;
+  applyRealtimeVoteUpdate: (payload: {
+    meetupId?: string;
+    runId?: string;
+    placeId?: string;
+    voteCount?: number;
+  }) => void;
+  applyRealtimeMeetupFinalized: (payload: {
+    meetupId?: string;
+    runId?: string;
+    placeId?: string;
+    canonicalCandidateKey?: string;
+  }) => void;
   setOpeningFilter: (mode: OpeningFilterMode) => void;
   setSortBy: (sort: SortOption) => void;
   setWeatherPolicy: (policy: WeatherPolicy) => void;
@@ -1137,6 +1246,10 @@ interface RecommendationState {
 export const useRecommendationStore = create<RecommendationState>((set, get) => ({
   activeMeetupId: null,
   activeMeetupDetail: null,
+  participantNamesById: {},
+  meetupMembers: MOCK_MEETUP_MEMBERS,
+  missingLocationMemberNames: [],
+  voteCountsByCandidateKey: {},
   apiError: null,
   isApiLoading: false,
   hasServerData: false,
@@ -1174,6 +1287,85 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
 
   clearApiError: () => set({ apiError: null }),
 
+  setParticipantNames: (namesById: Record<string, string>, viewerUserId?: string) =>
+    set((state) => {
+      const nextViewerId =
+        viewerUserId && UUID_REGEX.test(viewerUserId) ? viewerUserId : state.currentViewerId;
+      const mergedNames = { ...state.participantNamesById, ...namesById };
+
+      if (!state.hasServerData) {
+        return {
+          participantNamesById: mergedNames,
+          currentViewerId: nextViewerId,
+        };
+      }
+
+      const resolveName = (participantId: string) =>
+        participantId === nextViewerId
+          ? i18n.t('fe2.common.you')
+          : mergedNames[participantId] ?? `#${participantId.slice(0, 6)}`;
+
+      return {
+        participantNamesById: mergedNames,
+        currentViewerId: nextViewerId,
+        meetupMembers: state.meetupMembers.map((member) => ({
+          ...member,
+          name: resolveName(member.participantId),
+        })),
+        basePlaces: state.basePlaces.map((place) => ({
+          ...place,
+          memberEtas: place.memberEtas.map((m) => ({
+            ...m,
+            name: resolveName(m.participantId),
+          })),
+        })),
+      };
+    }),
+
+  applyRealtimeVoteUpdate: (payload) =>
+    set((state) => {
+      if (payload.meetupId && state.activeMeetupId && payload.meetupId !== state.activeMeetupId) {
+        return state;
+      }
+      if (typeof payload.voteCount !== 'number' || !payload.placeId) {
+        return state;
+      }
+      const nextCounts = { ...state.voteCountsByCandidateKey };
+      const nextPlaces = state.basePlaces.map((place) => {
+        const matches =
+          place.placeId === payload.placeId ||
+          place.canonicalCandidateKey === payload.placeId ||
+          place.providerPlaceId === payload.placeId;
+        if (!matches) return place;
+        nextCounts[place.canonicalCandidateKey] = payload.voteCount as number;
+        return { ...place, voteCount: payload.voteCount as number };
+      });
+      return {
+        voteCountsByCandidateKey: nextCounts,
+        basePlaces: nextPlaces,
+      };
+    }),
+
+  applyRealtimeMeetupFinalized: (payload) =>
+    set((state) => {
+      if (payload.meetupId && state.activeMeetupId && payload.meetupId !== state.activeMeetupId) {
+        return state;
+      }
+      const matched = state.basePlaces.find(
+        (p) =>
+          (payload.canonicalCandidateKey &&
+            p.canonicalCandidateKey === payload.canonicalCandidateKey) ||
+          (payload.placeId && (p.placeId === payload.placeId || p.providerPlaceId === payload.placeId))
+      );
+      const nextFinalizedKey =
+        matched?.canonicalCandidateKey ??
+        payload.canonicalCandidateKey ??
+        state.finalizedCandidateKey;
+      return {
+        finalizedCandidateKey: nextFinalizedKey,
+      };
+    }),
+
   loadRecommendationsForMeetup: async (meetupId: string, explicitRunId?: string) => {
     const prev = get();
     const isSameMeetup = prev.activeMeetupId === meetupId;
@@ -1185,6 +1377,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
         ? {}
         : {
             basePlaces: [],
+            meetupMembers: [],
+            missingLocationMemberNames: [],
+            voteCountsByCandidateKey: {},
             hasServerData: false,
             votedCandidateKey: null,
             finalizedCandidateKey: null,
@@ -1226,8 +1421,25 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       const viewerParticipantId =
         run.results.find((r) => r.viewerFeature)?.viewerFeature?.participantId ??
         state.currentViewerId;
+      const latestNames = get().participantNamesById;
+      const preservedVotes = run.id === state.runId ? state.voteCountsByCandidateKey : {};
+      const { candidateDetailsByProviderId, meetupMembers, missingLocationMemberNames } =
+        await fetchCandidateDetailsAndMemberLocations(
+          meetupId,
+          meetup,
+          viewerParticipantId,
+          latestNames
+        );
+
       const mappedPlaces = run.results.map((r) =>
-        mapApiResultToPlaceItem(r, meetup, viewerParticipantId)
+        mapApiResultToPlaceItem(
+          r,
+          meetup,
+          viewerParticipantId,
+          candidateDetailsByProviderId,
+          latestNames,
+          preservedVotes
+        )
       );
 
       const finalizedPlace = meetup.chosenRecommendationPlaceId
@@ -1239,6 +1451,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       set({
         activeMeetupId: meetupId,
         activeMeetupDetail: meetup,
+        meetupMembers,
+        missingLocationMemberNames,
+        voteCountsByCandidateKey: preservedVotes,
         runId: run.id,
         lastSyncedRunId: run.id,
         scheduledAtSnapshot: run.scheduledAtSnapshot,
@@ -1287,13 +1502,32 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       const viewerParticipantId =
         run.results.find((r) => r.viewerFeature)?.viewerFeature?.participantId ??
         state.currentViewerId;
+      const latestNames = get().participantNamesById;
+      const { candidateDetailsByProviderId, meetupMembers, missingLocationMemberNames } =
+        await fetchCandidateDetailsAndMemberLocations(
+          meetupId,
+          meetup,
+          viewerParticipantId,
+          latestNames
+        );
+
       const mappedPlaces = run.results.map((r) =>
-        mapApiResultToPlaceItem(r, meetup, viewerParticipantId)
+        mapApiResultToPlaceItem(
+          r,
+          meetup,
+          viewerParticipantId,
+          candidateDetailsByProviderId,
+          latestNames,
+          {}
+        )
       );
 
       set({
         activeMeetupId: meetupId,
         activeMeetupDetail: meetup,
+        meetupMembers,
+        missingLocationMemberNames,
+        voteCountsByCandidateKey: {},
         runId: run.id,
         lastSyncedRunId: run.id,
         scheduledAtSnapshot: run.scheduledAtSnapshot,

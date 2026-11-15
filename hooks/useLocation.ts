@@ -31,7 +31,7 @@ export function useLocation() {
   const { emit } = useSocket();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { settings, isEffectiveSharingActive } = usePrivacyStore();
+  const { isEffectiveSharingActive } = usePrivacyStore();
   const clearSyncError = useCallback(() => setSyncError(null), []);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export function useLocation() {
     return () => clearInterval(staleCheck);
   }, []);
 
-  const requestPermission = async () => {
+  const requestPermission = useCallback(async () => {
     try {
       const res = await Location.requestForegroundPermissionsAsync();
       if (res.granted) {
@@ -69,102 +69,106 @@ export function useLocation() {
       setPermission('denied');
       return false;
     }
-  };
+  }, []);
 
-  const fetchRealSample = async (): Promise<LocationState> => {
-    const now = new Date();
-    let coords = FALLBACK_LOCATION;
+  const fetchRealSample = useCallback(
+    async (useApproximateLocation: boolean): Promise<LocationState> => {
+      const now = new Date();
+      let coords = FALLBACK_LOCATION;
 
-    try {
-      let pos: Location.LocationObject | null = null;
       try {
-        pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        let pos: Location.LocationObject | null = null;
+        try {
+          pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        } catch {
+          pos = await Location.getLastKnownPositionAsync();
+        }
+        if (pos) {
+          coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy ?? 15,
+          };
+        }
       } catch {
-        pos = await Location.getLastKnownPositionAsync();
+        // Keep fallback coordinates when location services are disabled
       }
-      if (pos) {
-        coords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy ?? 15,
+
+      if (useApproximateLocation) {
+        const approxLat = Math.round(coords.lat * 100) / 100;
+        const approxLng = Math.round(coords.lng * 100) / 100;
+        return {
+          lat: approxLat,
+          lng: approxLng,
+          accuracy: Math.max(coords.accuracy, 1000),
+          updatedAt: now,
+          isStale: false,
+          isApproximate: true,
         };
       }
-    } catch {
-      // Keep fallback coordinates when location services are disabled
-    }
 
-    if (settings.useApproximateLocation) {
-      const approxLat = Math.round(coords.lat * 100) / 100;
-      const approxLng = Math.round(coords.lng * 100) / 100;
       return {
-        lat: approxLat,
-        lng: approxLng,
-        accuracy: Math.max(coords.accuracy, 1000),
+        ...coords,
         updatedAt: now,
         isStale: false,
-        isApproximate: true,
+        isApproximate: false,
       };
-    }
+    },
+    []
+  );
 
-    return {
-      ...coords,
-      updatedAt: now,
-      isStale: false,
-      isApproximate: false,
-    };
-  };
-
-  const stopSharing = () => {
+  const stopSharing = useCallback(() => {
     setIsSharing(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  };
+  }, []);
 
-  const startSharing = async () => {
-    const granted = permission === 'granted' ? true : await requestPermission();
-    if (!granted) return;
-    if (!isEffectiveSharingActive()) return;
-
-    setIsSharing(true);
-
-    const publishLocation = async () => {
-      if (!isEffectiveSharingActive()) {
-        stopSharing();
-        return;
-      }
-      const sample = await fetchRealSample();
-      setLocation(sample);
-      const recordedAt = sample.updatedAt.toISOString();
-      emit('location:update', {
+  const publishSingleSample = useCallback(async (): Promise<LocationState | null> => {
+    const store = usePrivacyStore.getState();
+    if (!store.isEffectiveSharingActive()) {
+      stopSharing();
+      return null;
+    }
+    const sample = await fetchRealSample(store.settings.useApproximateLocation);
+    setLocation(sample);
+    const recordedAt = sample.updatedAt.toISOString();
+    emit('location:update', {
+      latitude: sample.lat,
+      longitude: sample.lng,
+      accuracy: sample.accuracy,
+      recordedAt,
+    });
+    try {
+      await locationService.publishLocation({
         latitude: sample.lat,
         longitude: sample.lng,
         accuracy: sample.accuracy,
         recordedAt,
       });
-      try {
-        await locationService.publishLocation({
-          latitude: sample.lat,
-          longitude: sample.lng,
-          accuracy: sample.accuracy,
-          recordedAt,
-        });
-        setSyncError(null);
-      } catch (err) {
-        setSyncError(toApiError(err));
-      }
-    };
+      setSyncError(null);
+    } catch (err) {
+      setSyncError(toApiError(err));
+    }
+    return sample;
+  }, [emit, fetchRealSample, stopSharing]);
 
-    void publishLocation();
+  const startSharing = useCallback(async () => {
+    const granted = permission === 'granted' ? true : await requestPermission();
+    if (!granted) return;
+    if (!isEffectiveSharingActive()) return;
+
+    await publishSingleSample();
+    setIsSharing(true);
 
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
-      void publishLocation();
+      void publishSingleSample();
     }, 30_000);
-  };
+  }, [permission, requestPermission, isEffectiveSharingActive, publishSingleSample]);
 
   return {
     permission,
@@ -174,6 +178,7 @@ export function useLocation() {
     syncError,
     clearSyncError,
     requestPermission,
+    publishSingleSample,
     startSharing,
     stopSharing,
   };

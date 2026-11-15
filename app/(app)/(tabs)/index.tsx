@@ -33,11 +33,35 @@ export default function FriendMapScreen() {
   const { status: socketStatus, on, off } = useSocket();
   const { settings, fetchPrivacySettings, isEffectiveSharingActive } = usePrivacyStore();
   const { state: friendsState, friends: friendList, refresh: refreshFriends } = useFriends();
-  const { syncError: publishError, clearSyncError } = useLocation();
+  const {
+    syncError: publishError,
+    clearSyncError,
+    publishSingleSample,
+    startSharing,
+    stopSharing,
+  } = useLocation();
+  const isSharingEnabled = isEffectiveSharingActive();
 
   useEffect(() => {
     void fetchPrivacySettings();
   }, [fetchPrivacySettings]);
+
+  useEffect(() => {
+    if (!isSharingEnabled) {
+      stopSharing();
+      return;
+    }
+    let cancelled = false;
+    const begin = async () => {
+      if (cancelled) return;
+      await startSharing();
+    };
+    void begin();
+    return () => {
+      cancelled = true;
+      stopSharing();
+    };
+  }, [isSharingEnabled, startSharing, stopSharing]);
 
   const loadFriendLocations = useCallback(async () => {
     const results = await Promise.allSettled(
@@ -189,6 +213,25 @@ export default function FriendMapScreen() {
   const handleFriendPress = useSinglePress((friend: Friend) => {
     setSelectedFriend(friend);
     setModalVisible(true);
+    void locationService
+      .checkPermission({ ownerId: friend.userId, scope: 'friends' })
+      .then((perm) => {
+        if (!perm.allowed || !perm.precision) return;
+        const nextPrecision = perm.precision;
+        setSelectedFriend((prev) =>
+          prev && prev.userId === friend.userId
+            ? { ...prev, precision: nextPrecision }
+            : prev
+        );
+        setFriends((prev) =>
+          prev.map((item) =>
+            item.userId === friend.userId
+              ? { ...item, precision: nextPrecision }
+              : item
+          )
+        );
+      })
+      .catch(() => {});
   }, 400);
 
   const handleCenterMyLocation = useSinglePress(async () => {
@@ -204,6 +247,9 @@ export default function FriendMapScreen() {
         if (pos) {
           latitude = pos.coords.latitude;
           longitude = pos.coords.longitude;
+          if (isEffectiveSharingActive()) {
+            void publishSingleSample();
+          }
         }
       }
     } catch {

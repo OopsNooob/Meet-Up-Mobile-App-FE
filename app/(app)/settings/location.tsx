@@ -84,7 +84,7 @@ export default function LocationSettingsScreen() {
   }, [fetchPrivacySettings]);
 
   useEffect(() => {
-    if (friendsState.status === 'success' && loadedFriends.length > 0) {
+    if (friendsState.status === 'success') {
       setAvailableFriends(
         loadedFriends.map((f) => ({
           id: f.user.id,
