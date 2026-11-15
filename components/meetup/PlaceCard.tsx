@@ -87,6 +87,13 @@ export function PlaceCard({
         <View style={{ flex: 1 }}>
           <View style={styles.rankRow}>
             <Text style={styles.rank}>#{place.rank}</Text>
+            {place.voteCount > 0 && (
+              <View style={[styles.statusBadge, { backgroundColor: colors.infoLight }]}>
+                <Text style={[styles.statusBadgeText, { color: colors.info }]}>
+                  🗳️ {t('fe2.recommendation.vote_count_badge', { count: place.voteCount })}
+                </Text>
+              </View>
+            )}
             {isFinalized && (
               <View style={[styles.statusBadge, { backgroundColor: colors.successLight }]}>
                 <Text style={[styles.statusBadgeText, { color: colors.success }]}>
@@ -270,12 +277,12 @@ export function PlaceCard({
             <View key={m.participantId} style={styles.memberRow}>
               <Text style={[styles.memberName, { color: colors.subtext }]}>
                 {modeIcon} {m.name === 'Bạn' ? t('fe2.common.you') : m.name}{' '}
-                <Text style={{ fontSize: 11, color: colors.placeholder }}>({modeLabel})</Text>
+                <Text style={{ fontSize: 11, color: colors.placeholder }}>• {modeLabel}</Text>
               </Text>
               <View style={styles.memberEtaRight}>
                 {trafficDeltaMin > 0 && (
                   <Text style={[styles.trafficDeltaText, { color: colors.warning }]}>
-                    ({t('fe2.recommendation.traffic_delta', { mins: trafficDeltaMin })})
+                    {t('fe2.recommendation.traffic_delta', { mins: trafficDeltaMin })}
                   </Text>
                 )}
                 <Text style={[styles.memberEtaText, { color: colors.primary }]}>

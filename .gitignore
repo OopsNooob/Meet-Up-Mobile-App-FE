@@ -22,6 +22,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+google-services.json
 
 # Build and Expo files
 .expo/

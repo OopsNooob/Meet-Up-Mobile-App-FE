@@ -10,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Navigation, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useSinglePress } from '@/hooks/useSinglePress';
 import { Button } from '@/components/common/Button';
 import { radius, spacing } from '@/theme';
 import { MOCK_MEETUP_MEMBERS } from '@/store/useRecommendationStore';
@@ -32,6 +33,7 @@ export function TravelModeModal({
 }: TravelModeModalProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const handleClose = useSinglePress(onClose, 400);
 
   const styles = useMemo(
     () =>
@@ -190,7 +192,7 @@ export function TravelModeModal({
                 {t('fe2.recommendation.travel_modal_title')}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
               <X size={20} color={colors.subtext} />
             </TouchableOpacity>
           </View>
@@ -304,7 +306,7 @@ export function TravelModeModal({
               label={t('fe2.common.understood')}
               variant="primary"
               fullWidth
-              onPress={onClose}
+              onPress={handleClose}
             />
           </View>
         </View>

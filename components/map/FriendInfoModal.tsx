@@ -58,7 +58,7 @@ function FriendInfoContent({
 
   const handleChat = useSinglePress(() => {
     onClose();
-    router.push(routes.meetupChat('meetup-1'));
+    router.push(routes.directChat(friend.userId, friend.name));
   }, 600);
 
   const isApprox = friend.precision === 'approximate' || friend.accuracy >= 1000;
@@ -110,7 +110,7 @@ function FriendInfoContent({
               <View style={styles.infoRow}>
                 <Shield size={16} color={colors.purple} />
                 <Text style={[styles.infoText, { color: colors.text }]}>
-                  {t('fe2.map.precision_approximate')} (±1.1 km)
+                  {t('fe2.map.precision_approximate')} • ~1.1 km
                 </Text>
               </View>
             ) : (

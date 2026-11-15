@@ -217,7 +217,7 @@ export function FilterSortModal({
               <SlidersHorizontal size={20} color={colors.primary} />
               <Text style={styles.headerTitle}>{t('fe2.recommendation.filter_sort_btn')}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleApply} style={styles.closeBtn}>
               <X size={20} color={colors.subtext} />
             </TouchableOpacity>
           </View>

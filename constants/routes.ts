@@ -30,6 +30,10 @@ export const routes = {
   }),
   meetupVote: (meetupId: string) => ({ pathname: '/meetup/[meetupId]/vote', params: { meetupId } }),
   meetupChat: (meetupId: string) => ({ pathname: '/meetup/[meetupId]/chat', params: { meetupId } }),
+  directChat: (peerId: string, peerName?: string) => ({
+    pathname: '/chat/[peerId]',
+    params: peerName ? { peerId, peerName } : { peerId },
+  }),
 
   friendSearch: '/friend/search',
   friendRequests: '/friend/requests',
@@ -58,6 +62,7 @@ export const deepLinks = {
   meetup: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}`),
   recommendations: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/recommendations`),
   chat: (meetupId: string) => Linking.createURL(`/meetup/${meetupId}/chat`),
+  directChat: (peerId: string) => Linking.createURL(`/chat/${peerId}`),
   place: (placeId: string) => Linking.createURL(`/place/${placeId}`),
   locationSettings: () => Linking.createURL('/settings/location'),
   nearbySettings: () => Linking.createURL('/settings/nearby'),

@@ -3,6 +3,7 @@ module.exports = ({ config }) => {
     ...config,
     android: {
       ...config.android,
+      googleServicesFile: config.android?.googleServicesFile || './google-services.json',
       config: {
         ...config.android?.config,
         googleMaps: {

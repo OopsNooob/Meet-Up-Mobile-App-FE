@@ -13,6 +13,7 @@ import { Bell, RefreshCw, BellOff, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { NotifType, scheduleMockNotification, useFCM } from '@/hooks/useFCM';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { InlineAlert } from '@/components/common/InlineAlert';
 import { InAppNotificationBanner } from '@/components/common/InAppNotificationBanner';
 import { routes } from '@/constants/routes';
 
@@ -29,7 +30,15 @@ export default function NotificationsTestScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [deviceRegistered, setDeviceRegistered] = useState(true);
+  const {
+    expoPushToken,
+    registeredDeviceId,
+    registrationError,
+    registerTokenWithBackend,
+    revokeCurrentDevice,
+  } = useFCM();
+
+  const deviceRegistered = Boolean(registeredDeviceId);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [recentList, setRecentList] = useState<RecentNotifItem[]>([]);
   const [bannerInfo, setBannerInfo] = useState<{
@@ -39,18 +48,21 @@ export default function NotificationsTestScreen() {
     type?: NotifType;
   } | null>(null);
 
-  useFCM();
-
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    if (expoPushToken) {
+      await registerTokenWithBackend(expoPushToken);
+    }
+    setIsRefreshing(false);
   }, 700);
 
-  const navigateByType = (type?: NotifType) => {
+  const navigateByType = useSinglePress((type?: NotifType) => {
     const targetMeetupId = 'meetup-1';
-    if (type === 'recommendation_ready' || type === 'meetup_finalized') {
+    if (
+      type === 'recommendation_ready' ||
+      type === 'meetup_finalized' ||
+      type === 'meetup.finalized'
+    ) {
       router.push(routes.meetupRecommendations(targetMeetupId));
     } else if (type === 'meetup_reminder') {
       router.push(routes.meetupChat(targetMeetupId));
@@ -59,7 +71,18 @@ export default function NotificationsTestScreen() {
     } else {
       router.push(routes.meetupDetail(targetMeetupId));
     }
-  };
+  }, 600);
+
+  const handleRegisterDevice = useSinglePress(async () => {
+    const targetToken =
+      expoPushToken && expoPushToken.length >= 20
+        ? expoPushToken
+        : 'ExponentPushToken[dev-simulator-token]';
+    await registerTokenWithBackend(targetToken);
+  }, 400);
+  const handleUnregisterDevice = useSinglePress(async () => {
+    await revokeCurrentDevice();
+  }, 400);
 
   const handleTest = useSinglePress((type: NotifType) => {
     scheduleMockNotification(type, 'meetup-1');
@@ -70,6 +93,10 @@ export default function NotificationsTestScreen() {
         body: t('fe2.dev_notifications.invite_body'),
       },
       meetup_finalized: {
+        title: t('fe2.dev_notifications.finalized_title'),
+        body: t('fe2.dev_notifications.finalized_body'),
+      },
+      'meetup.finalized': {
         title: t('fe2.dev_notifications.finalized_title'),
         body: t('fe2.dev_notifications.finalized_body'),
       },
@@ -153,13 +180,20 @@ export default function NotificationsTestScreen() {
               ? t('fe2.dev_notifications.device_registered')
               : t('fe2.dev_notifications.device_unregistered')}
           </Text>
+          {registrationError && (
+            <InlineAlert
+              tone="danger"
+              title={t(`errors.${registrationError.code}.title` as any)}
+              message={t(`errors.${registrationError.code}.description` as any)}
+            />
+          )}
           <View style={styles.deviceActions}>
             <TouchableOpacity
               style={[
                 styles.smallBtn,
                 { backgroundColor: colors.primaryLight, borderColor: colors.primary },
               ]}
-              onPress={() => setDeviceRegistered(true)}
+              onPress={handleRegisterDevice}
             >
               <RefreshCw size={13} color={colors.primary} />
               <Text style={[styles.smallBtnText, { color: colors.primary }]}>
@@ -175,7 +209,7 @@ export default function NotificationsTestScreen() {
                   styles.smallBtn,
                   { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
                 ]}
-                onPress={() => setDeviceRegistered(false)}
+                onPress={handleUnregisterDevice}
               >
                 <BellOff size={13} color={colors.subtext} />
                 <Text style={[styles.smallBtnText, { color: colors.subtext }]}>

@@ -23,17 +23,21 @@ import {
   CheckCircle2,
   Globe2,
 } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { useTheme } from '@/hooks/useTheme';
+import { useFriends } from '@/hooks/useFriends';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
 import { SharingMode } from '@/types/privacy';
 import { FriendSelectionModal } from '@/components/settings/FriendSelectionModal';
+import { InlineAlert } from '@/components/common/InlineAlert';
 import { LocationSettingsSkeleton } from '@/components/common/Skeleton';
+import { LanguageToggle } from '@/components/common/LanguageToggle';
 
 type PermissionStatus = 'granted' | 'denied' | 'blocked' | 'undetermined';
 
 export default function LocationSettingsScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -45,31 +49,70 @@ export default function LocationSettingsScreen() {
   const {
     settings,
     availableFriends,
-    setSharingMode,
-    setSharingExpiresAt,
-    setUseApproximateLocation,
-    addSelectedFriend,
-    removeSelectedFriend,
-    setSelectedFriends,
+    apiError,
+    fetchPrivacySettings,
+    savePrivacySettingsToServer,
+    removeSelectedFriendFromServer,
+    setAvailableFriends,
     isEffectiveSharingActive,
   } = usePrivacyStore();
+  const { state: friendsState, friends: loadedFriends } = useFriends();
 
   const [friendModalVisible, setFriendModalVisible] = useState(false);
   const [selectedExpiryHours, setSelectedExpiryHours] = useState<number>(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    (async () => {
+      try {
+        const perm = await Location.getForegroundPermissionsAsync();
+        if (active) {
+          if (perm.granted) setPermission('granted');
+          else if (!perm.canAskAgain) setPermission('blocked');
+          else if (perm.status === 'denied') setPermission('denied');
+          else setPermission('undetermined');
+        }
+      } catch {
+        // Keep current status if permission query unavailable
+      }
+      await fetchPrivacySettings();
+      if (active) setIsLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [fetchPrivacySettings]);
+
+  useEffect(() => {
+    if (friendsState.status === 'success' && loadedFriends.length > 0) {
+      setAvailableFriends(
+        loadedFriends.map((f) => ({
+          id: f.user.id,
+          displayName: f.user.name,
+          avatarUrl: f.user.avatarUrl,
+        }))
+      );
+    }
+  }, [friendsState.status, loadedFriends, setAvailableFriends]);
 
   const showSavedFeedback = () => {
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 2000);
   };
 
-  const handleRetry = useSinglePress(() => {
-    setPermission('granted');
-    showSavedFeedback();
+  const handleRetry = useSinglePress(async () => {
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.granted) {
+        setPermission('granted');
+      } else {
+        setPermission(perm.canAskAgain ? 'denied' : 'blocked');
+      }
+    } catch {
+      setPermission('denied');
+    }
+    const ok = await fetchPrivacySettings();
+    if (ok) showSavedFeedback();
   }, 500);
 
   const handleOpenSettings = useSinglePress(() => {
@@ -80,14 +123,19 @@ export default function LocationSettingsScreen() {
 
   const isSharingActive = settings.sharingMode !== 'off';
 
-  const handleMasterToggle = (val: boolean) => {
+  const handleMasterToggle = async (val: boolean) => {
     if (!val) {
-      setSharingMode('off');
       setSelectedExpiryHours(0);
+      const ok = await savePrivacySettingsToServer({
+        sharingMode: 'off',
+        sharingExpiresAt: null,
+        selectedFriendIds: [],
+      });
+      if (ok) showSavedFeedback();
     } else {
-      setSharingMode('friends');
+      const ok = await savePrivacySettingsToServer({ sharingMode: 'friends' });
+      if (ok) showSavedFeedback();
     }
-    showSavedFeedback();
   };
 
   const SHARING_MODES: { mode: SharingMode; icon: any; titleKey: string; subKey: string }[] = [
@@ -125,43 +173,41 @@ export default function LocationSettingsScreen() {
     { label: t('fe2.location.expiry_24h'), hours: 24 },
   ];
 
-  const handleSelectExpiry = useSinglePress((hours: number) => {
+  const handleSelectExpiry = useSinglePress(async (hours: number) => {
     setSelectedExpiryHours(hours);
-    if (hours === 0) {
-      setSharingExpiresAt(null);
-    } else {
-      const target = new Date(Date.now() + hours * 3600 * 1000);
-      setSharingExpiresAt(target.toISOString());
-    }
-    showSavedFeedback();
+    const nextExpiresAt =
+      hours === 0 ? null : new Date(Date.now() + hours * 3600 * 1000).toISOString();
+    const ok = await savePrivacySettingsToServer({ sharingExpiresAt: nextExpiresAt });
+    if (ok) showSavedFeedback();
   }, 400);
 
-  const handleModeSelect = useSinglePress((mode: SharingMode) => {
-    setSharingMode(mode);
-    showSavedFeedback();
+  const handleModeSelect = useSinglePress(async (mode: SharingMode) => {
+    const ok = await savePrivacySettingsToServer({ sharingMode: mode });
+    if (ok) showSavedFeedback();
   }, 400);
 
-  const handleRemoveFriend = useSinglePress((friendId: string) => {
-    removeSelectedFriend(friendId);
-    showSavedFeedback();
+  const handleRemoveFriend = useSinglePress(async (friendId: string) => {
+    const ok = await removeSelectedFriendFromServer(friendId);
+    if (ok) showSavedFeedback();
   }, 400);
 
-  const handleAddFriend = useSinglePress((friendId: string) => {
-    addSelectedFriend(friendId);
-    showSavedFeedback();
+  const handleAddFriend = useSinglePress(async (friendId: string) => {
+    if (settings.selectedFriendIds.includes(friendId)) return;
+    const ok = await savePrivacySettingsToServer({
+      selectedFriendIds: [...settings.selectedFriendIds, friendId],
+    });
+    if (ok) showSavedFeedback();
   }, 400);
 
-  const handleToggleLanguage = useSinglePress(() => {
-    const next = i18n.language === 'vi' ? 'en' : 'vi';
-    i18n.changeLanguage(next);
-  }, 500);
+  const handleOpenFriendModal = useSinglePress(() => {
+    setFriendModalVisible(true);
+  }, 400);
 
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      showSavedFeedback();
-    }, 700);
+    const ok = await fetchPrivacySettings();
+    setIsRefreshing(false);
+    if (ok) showSavedFeedback();
   }, 800);
 
   const selectedFriends = useMemo(() => {
@@ -200,6 +246,18 @@ export default function LocationSettingsScreen() {
         <LocationSettingsSkeleton />
       ) : (
         <>
+          {apiError && (
+            <View style={{ gap: 8 }}>
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${apiError.code}.title` as any)}
+                message={t(`errors.${apiError.code}.description` as any)}
+              />
+              <TouchableOpacity style={styles.btnPrimary} onPress={handleRefresh}>
+                <Text style={styles.btnTextWhite}>{t('fe2.common.retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {/* === Banner Trạng thái hiệu lực === */}
           <View
             style={[
@@ -247,18 +305,7 @@ export default function LocationSettingsScreen() {
                   <Text style={[styles.approxBadgeText, { color: colors.primary }]}>~1.1km</Text>
                 </View>
               )}
-              <TouchableOpacity
-                onPress={handleToggleLanguage}
-                style={[
-                  styles.langPill,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Globe2 size={12} color={colors.primary} />
-                <Text style={[styles.langPillText, { color: colors.text }]}>
-                  {i18n.language === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
-                </Text>
-              </TouchableOpacity>
+              <LanguageToggle />
             </View>
           </View>
 
@@ -391,7 +438,7 @@ export default function LocationSettingsScreen() {
                   styles.manageBtn,
                   { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                 ]}
-                onPress={() => setFriendModalVisible(true)}
+                onPress={handleOpenFriendModal}
               >
                 <Users size={16} color={colors.primary} />
                 <Text style={[styles.manageBtnText, { color: colors.primary }]}>
@@ -499,9 +546,9 @@ export default function LocationSettingsScreen() {
               </View>
               <Switch
                 value={settings.useApproximateLocation}
-                onValueChange={(val) => {
-                  setUseApproximateLocation(val);
-                  showSavedFeedback();
+                onValueChange={async (val) => {
+                  const ok = await savePrivacySettingsToServer({ useApproximateLocation: val });
+                  if (ok) showSavedFeedback();
                 }}
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
@@ -524,9 +571,12 @@ export default function LocationSettingsScreen() {
         onClose={() => setFriendModalVisible(false)}
         friends={availableFriends}
         selectedFriendIds={settings.selectedFriendIds}
-        onSave={(newIds) => {
-          setSelectedFriends(newIds);
-          showSavedFeedback();
+        onSave={async (newIds) => {
+          const ok = await savePrivacySettingsToServer({
+            selectedFriendIds: newIds,
+            sharingMode: newIds.length === 0 ? 'friends' : settings.sharingMode,
+          });
+          if (ok) showSavedFeedback();
         }}
       />
     </ScrollView>

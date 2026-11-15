@@ -10,6 +10,7 @@
     "android": {
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.mobile",
+      "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {
           "apiKey": "DUMMY_API_KEY_TO_PREVENT_CRASH"
@@ -22,6 +23,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {

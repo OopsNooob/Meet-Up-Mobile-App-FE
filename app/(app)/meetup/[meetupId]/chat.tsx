@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,73 +9,52 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  ScrollView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Sparkles } from 'lucide-react-native';
+import { MapPin, Sparkles, Paperclip, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { ChatBubble, ChatMessage, MessageStatus } from '@/components/meetup/ChatBubble';
+import {
+  ChatAttachmentItem,
+  ChatBubble,
+  ChatMessage,
+  MessageStatus,
+} from '@/components/meetup/ChatBubble';
+import { ChatAttachmentSheet } from '@/components/meetup/ChatAttachmentSheet';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { ErrorState } from '@/components/common/StateViews';
 import { ChatSkeleton } from '@/components/common/Skeleton';
+import { useFriends } from '@/hooks/useFriends';
 import { useSocket } from '@/hooks/useSocket';
 import { useSinglePress } from '@/hooks/useSinglePress';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import {
+  chatService,
+  formatChatLocationText,
+  mapApiChatMessageToUi,
+  mergeChronologicalMessages,
+  toUploadFilesFromAttachments,
+} from '@/services/chatService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { generateUuidV4 } from '@/utils/uuid';
 import { routes } from '@/constants/routes';
 import {
   selectComputedRecommendations,
   useRecommendationStore,
 } from '@/store/useRecommendationStore';
+import {
+  captureChatPhoto,
+  getCurrentChatLocation,
+  pickChatDocuments,
+  pickChatImagesFromLibrary,
+} from '@/services/chatMediaService';
 
-const CURRENT_USER_ID = 'u1';
-
-function getInitialMessages(t: (key: string) => string): ChatMessage[] {
-  const currentUserName = t('fe2.common.you');
-  return [
-    {
-      id: 'm1',
-      userId: 'u2',
-      userName: 'Việt',
-      text: t('fe2.chat.mock_msg_1'),
-      timestamp: new Date(Date.now() - 5 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-    },
-    {
-      id: 'm2',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_2'),
-      timestamp: new Date(Date.now() - 4 * 60 * 1000),
-      status: 'sent',
-      isOwn: true,
-    },
-    {
-      id: 'm3',
-      userId: 'u3',
-      userName: 'Minh',
-      text: t('fe2.chat.mock_msg_3'),
-      timestamp: new Date(Date.now() - 3 * 60 * 1000),
-      status: 'sent',
-      isOwn: false,
-    },
-    {
-      id: 'm4',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_pending'),
-      timestamp: new Date(Date.now() - 60 * 1000),
-      status: 'pending',
-      isOwn: true,
-    },
-    {
-      id: 'm5',
-      userId: 'u1',
-      userName: currentUserName,
-      text: t('fe2.chat.mock_msg_error'),
-      timestamp: new Date(Date.now() - 30 * 1000),
-      status: 'error',
-      isOwn: true,
-    },
-  ];
-}
+const MAX_ATTACHMENTS_PER_MESSAGE = 5;
+const PAGE_LIMIT = 50;
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -83,6 +62,8 @@ export default function ChatScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { meetupId = 'meetup-1' } = useLocalSearchParams<{ meetupId: string }>();
 
+  const currentUserId = useAuthStore((s) => s.user?.id ?? 'u1');
+  const { friends } = useFriends();
   const storeState = useRecommendationStore();
   const { places } = useMemo(
     () => selectComputedRecommendations(storeState),
@@ -90,6 +71,7 @@ export default function ChatScreen() {
   );
 
   const pinnedPlace = useMemo(() => {
+    if (storeState.activeMeetupId !== meetupId || !storeState.hasServerData) return undefined;
     if (storeState.finalizedCandidateKey) {
       return (
         places.find((p) => p.canonicalCandidateKey === storeState.finalizedCandidateKey) ??
@@ -97,113 +79,284 @@ export default function ChatScreen() {
       );
     }
     return places[0];
-  }, [places, storeState.finalizedCandidateKey]);
+  }, [places, storeState.activeMeetupId, storeState.hasServerData, storeState.finalizedCandidateKey, meetupId]);
 
   const currentUserName = t('fe2.common.you');
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages(t));
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [olderLoaded, setOlderLoaded] = useState(false);
+  const [apiError, setApiError] = useState<AppError | null>(null);
+  const loadedMeetupRef = useRef<string | null>(null);
+  const isLoading = !hasLoadedOnce;
   const [inputText, setInputText] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentItem[]>([]);
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const { emit } = useSocket();
+  const { status: socketStatus, on, off, joinMeetup } = useSocket();
+
+  const resolveSenderName = useCallback(
+    (senderId: string) => {
+      if (senderId === currentUserId) return currentUserName;
+      const friendMatch = friends.find((f) => f.user.id === senderId);
+      return friendMatch?.user.name ?? `#${senderId.slice(0, 6)}`;
+    },
+    [currentUserId, currentUserName, friends]
+  );
+
+  const fetchLatestMessages = useCallback(async () => {
+    const isMeetupChanged = loadedMeetupRef.current !== meetupId;
+    try {
+      const rows = await chatService.listMeetupMessages(meetupId, { limit: PAGE_LIMIT });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      loadedMeetupRef.current = meetupId;
+      setMessages((prev) => mergeChronologicalMessages(isMeetupChanged ? [] : prev, mapped));
+      setOlderLoaded(rows.length < PAGE_LIMIT);
+      setApiError(null);
+    } catch (err) {
+      if (isMeetupChanged) {
+        loadedMeetupRef.current = meetupId;
+        setMessages([]);
+      }
+      setApiError(toApiError(err));
+    }
+  }, [meetupId, currentUserId, resolveSenderName]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timer);
-  }, []);
+    let active = true;
+    const loadInitial = async () => {
+      await fetchLatestMessages();
+      if (active) setHasLoadedOnce(true);
+    };
+    void loadInitial();
+    return () => {
+      active = false;
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    };
+  }, [fetchLatestMessages]);
 
-  const prependOlderMessages = () => {
-    if (olderLoaded) return;
-    const olderMsgs: ChatMessage[] = [
-      {
-        id: 'm_old_1',
-        userId: 'u2',
-        userName: 'Việt',
-        text: t('fe2.chat.older_msg_1'),
-        timestamp: new Date(Date.now() - 15 * 60 * 1000),
-        status: 'sent',
-        isOwn: false,
-      },
-      {
-        id: 'm_old_2',
-        userId: 'u3',
-        userName: 'Minh',
-        text: t('fe2.chat.older_msg_2'),
-        timestamp: new Date(Date.now() - 12 * 60 * 1000),
-        status: 'sent',
-        isOwn: false,
-      },
-    ];
-    setMessages((prev) => [...olderMsgs, ...prev]);
-    setOlderLoaded(true);
+  useEffect(() => {
+    if (socketStatus === 'connected') {
+      joinMeetup(meetupId);
+    }
+  }, [socketStatus, meetupId, joinMeetup]);
+
+  useEffect(() => {
+    const handleChatEvent = (payload: { meetupId?: string }) => {
+      if (payload?.meetupId && payload.meetupId !== meetupId) return;
+      void fetchLatestMessages();
+    };
+    on('meetup:chat-message', handleChatEvent);
+    on('MeetupChatMessageCreated.v1', handleChatEvent);
+    return () => {
+      off('meetup:chat-message');
+      off('MeetupChatMessageCreated.v1');
+    };
+  }, [on, off, socketStatus, meetupId, fetchLatestMessages]);
+
+  const showFeedback = (msg: string) => {
+    setFeedbackBanner(msg);
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => setFeedbackBanner(null), 3500);
   };
 
+  const loadOlderMessages = useCallback(async () => {
+    if (olderLoaded) return;
+    const oldest = messages.find((m) => m.status === 'sent');
+    if (!oldest) {
+      await fetchLatestMessages();
+      return;
+    }
+    try {
+      const rows = await chatService.listMeetupMessages(meetupId, {
+        before: oldest.timestamp.toISOString(),
+        beforeId: oldest.id,
+        limit: PAGE_LIMIT,
+      });
+      const mapped = rows.map((row) =>
+        mapApiChatMessageToUi(row, currentUserId, resolveSenderName)
+      );
+      setMessages((prev) => mergeChronologicalMessages(mapped, prev));
+      if (rows.length < PAGE_LIMIT) {
+        setOlderLoaded(true);
+      }
+      setApiError(null);
+    } catch (err) {
+      setApiError(toApiError(err));
+    }
+  }, [olderLoaded, messages, meetupId, currentUserId, resolveSenderName, fetchLatestMessages]);
+
   const handleLoadOlder = useSinglePress(() => {
-    prependOlderMessages();
+    void loadOlderMessages();
   }, 500);
 
-  // Pull-to-Refresh at top of chat list loads older messages
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      prependOlderMessages();
-      setIsRefreshing(false);
-    }, 650);
+    await fetchLatestMessages();
+    setIsRefreshing(false);
   }, 700);
 
-  const handleSend = useSinglePress(() => {
+  const handleOpenRecommendations = useSinglePress(() => {
+    router.push(routes.meetupRecommendations(meetupId));
+  }, 600);
+
+  const handleOpenAttachmentSheet = useSinglePress(() => {
+    if (pendingAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE) {
+      showFeedback(t('fe2.chat.attachment_limit_reached'));
+      return;
+    }
+    setSheetVisible(true);
+  }, 350);
+
+  const appendPickedAttachments = (items: ChatAttachmentItem[]) => {
+    setPendingAttachments((prev) => {
+      const remaining = MAX_ATTACHMENTS_PER_MESSAGE - prev.length;
+      if (items.length > remaining) {
+        showFeedback(t('fe2.chat.attachment_limit_reached'));
+      }
+      return [...prev, ...items.slice(0, Math.max(0, remaining))];
+    });
+  };
+
+  const handlePickLibrary = async () => {
+    const remaining = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length;
+    if (remaining <= 0) {
+      showFeedback(t('fe2.chat.attachment_limit_reached'));
+      return;
+    }
+    const res = await pickChatImagesFromLibrary(remaining);
+    if (res.status === 'picked') appendPickedAttachments(res.items);
+    else if (res.status === 'denied') showFeedback(t('fe2.chat.permission_media_denied'));
+  };
+
+  const handleTakePhoto = async () => {
+    const remaining = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length;
+    if (remaining <= 0) {
+      showFeedback(t('fe2.chat.attachment_limit_reached'));
+      return;
+    }
+    const res = await captureChatPhoto();
+    if (res.status === 'picked') appendPickedAttachments(res.items);
+    else if (res.status === 'denied') showFeedback(t('fe2.chat.permission_media_denied'));
+  };
+
+  const handlePickDocument = async () => {
+    const remaining = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length;
+    if (remaining <= 0) {
+      showFeedback(t('fe2.chat.attachment_limit_reached'));
+      return;
+    }
+    const res = await pickChatDocuments(remaining);
+    if (res.status === 'picked') appendPickedAttachments(res.items);
+  };
+
+  const handleRemovePendingAttachment = (attId: string) => {
+    setPendingAttachments((prev) => prev.filter((item) => item.id !== attId));
+  };
+
+  const canSend = inputText.trim().length > 0 || pendingAttachments.length > 0;
+
+  const sendOptimisticMessage = async (newMsg: ChatMessage, outboundText?: string) => {
+    const clientMessageId = newMsg.clientMessageId || newMsg.id;
+    try {
+      const serverMsg = await chatService.sendMeetupMessage(meetupId, {
+        clientMessageId,
+        text: outboundText !== undefined ? outboundText : newMsg.text || undefined,
+        files: toUploadFilesFromAttachments(newMsg.attachments),
+      });
+      const mapped = mapApiChatMessageToUi(serverMsg, currentUserId, resolveSenderName);
+      setMessages((prev) =>
+        mergeChronologicalMessages(
+          prev.filter((m) => m.id !== newMsg.id && m.clientMessageId !== clientMessageId),
+          [mapped]
+        )
+      );
+      setApiError(null);
+    } catch (err) {
+      const parsed = toApiError(err);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === newMsg.id || m.clientMessageId === clientMessageId
+            ? { ...m, status: 'error' as MessageStatus }
+            : m
+        )
+      );
+      showFeedback(t(`errors.${parsed.code}.description` as any));
+    }
+  };
+
+  const handleSend = useSinglePress(async () => {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text && pendingAttachments.length === 0) return;
+    const attachmentsToSend =
+      pendingAttachments.length > 0 ? [...pendingAttachments] : undefined;
+    const clientMessageId = generateUuidV4();
     const newMsg: ChatMessage = {
-      id: `m_${Date.now()}`,
-      userId: CURRENT_USER_ID,
+      id: clientMessageId,
+      clientMessageId,
+      userId: currentUserId,
       userName: currentUserName,
       text,
       timestamp: new Date(),
       status: 'pending',
       isOwn: true,
+      attachments: attachmentsToSend,
     };
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
+    setPendingAttachments([]);
+    await sendOptimisticMessage(newMsg);
+  }, 450);
 
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 650);
-    emit('chat:send', { meetupId, text });
-  }, 500);
+  const handleShareLocation = useSinglePress(async () => {
+    if (isLocating) return;
+    setIsLocating(true);
+    try {
+      const res = await getCurrentChatLocation();
+      if (res.status === 'denied') {
+        showFeedback(t('fe2.chat.permission_location_denied'));
+        return;
+      }
+      if (res.status === 'error') {
+        showFeedback(t('fe2.chat.location_fetch_error'));
+        return;
+      }
 
-  const handleShareLocation = useSinglePress(() => {
-    const locText = t('fe2.chat.location_shared_msg');
-    const newMsg: ChatMessage = {
-      id: `m_${Date.now()}`,
-      userId: CURRENT_USER_ID,
-      userName: currentUserName,
-      text: locText,
-      timestamp: new Date(),
-      status: 'pending',
-      isOwn: true,
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 600);
-    emit('chat:send', { meetupId, text: locText });
+      const clientMessageId = generateUuidV4();
+      const locationText = formatChatLocationText(res.location);
+      const newMsg: ChatMessage = {
+        id: clientMessageId,
+        clientMessageId,
+        userId: currentUserId,
+        userName: currentUserName,
+        text: '',
+        timestamp: new Date(),
+        status: 'pending',
+        isOwn: true,
+        location: res.location,
+      };
+      setMessages((prev) => [...prev, newMsg]);
+      await sendOptimisticMessage(newMsg, locationText);
+    } finally {
+      setIsLocating(false);
+    }
   }, 700);
 
-  const handleRetry = useSinglePress((messageId: string) => {
+  const handleRetry = useSinglePress(async (messageId: string) => {
+    const failedMsg = messages.find((m) => m.id === messageId);
+    if (!failedMsg) return;
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, status: 'pending' as MessageStatus } : m))
     );
-    setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m))
-      );
-    }, 700);
+    const outboundText = failedMsg.location
+      ? formatChatLocationText(failedMsg.location)
+      : failedMsg.text || undefined;
+    await sendOptimisticMessage(failedMsg, outboundText);
   }, 600);
 
   return (
@@ -216,8 +369,8 @@ export default function ChatScreen() {
         options={{
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => router.push(routes.meetupRecommendations(meetupId))}
-              style={{ padding: 6, marginRight: 4 }}
+              onPress={handleOpenRecommendations}
+              style={{ padding: 6, marginRight: 2 }}
               accessibilityLabel={t('fe2.recommendation.screen_title')}
             >
               <Sparkles size={20} color={colors.primary} />
@@ -240,7 +393,7 @@ export default function ChatScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.pinnedBtn, { backgroundColor: colors.primaryLight }]}
-            onPress={() => router.push(routes.meetupRecommendations(meetupId))}
+            onPress={handleOpenRecommendations}
           >
             <Text style={[styles.pinnedBtnText, { color: colors.primary }]}>
               {t('fe2.chat.view_places_btn')}
@@ -249,56 +402,151 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {feedbackBanner && (
+        <View
+          style={[
+            styles.feedbackBanner,
+            { backgroundColor: colors.warningLight, borderBottomColor: colors.warning },
+          ]}
+        >
+          <Text style={[styles.feedbackBannerText, { color: colors.warning }]}>
+            {feedbackBanner}
+          </Text>
+        </View>
+      )}
+
       {isLoading ? (
         <View style={{ flex: 1 }}>
           <ChatSkeleton />
         </View>
+      ) : apiError && messages.length === 0 ? (
+        <ErrorState error={apiError} onRetry={handleRefresh} />
       ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-              progressBackgroundColor={colors.surface}
-            />
-          }
-          ListHeaderComponent={
-            <TouchableOpacity
-              style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
-              onPress={handleLoadOlder}
-              disabled={olderLoaded}
-            >
-              <Text
+        <>
+          {apiError && (
+            <View style={{ padding: 8 }}>
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${apiError.code}.title` as any)}
+                message={t(`errors.${apiError.code}.description` as any)}
+              />
+            </View>
+          )}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+                progressBackgroundColor={colors.surface}
+              />
+            }
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={[styles.loadOlderBtn, { backgroundColor: colors.surfaceAlt }]}
+                onPress={handleLoadOlder}
+                disabled={olderLoaded}
+              >
+                <Text
+                  style={[
+                    styles.loadOlderText,
+                    { color: olderLoaded ? colors.placeholder : colors.primary },
+                  ]}
+                >
+                  {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
+                </Text>
+              </TouchableOpacity>
+            }
+            renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
+            contentContainerStyle={styles.list}
+          />
+        </>
+      )}
+
+      {/* Pending Attachments Strip */}
+      {pendingAttachments.length > 0 && (
+        <View
+          style={[
+            styles.pendingStrip,
+            { backgroundColor: colors.surface, borderTopColor: colors.border },
+          ]}
+        >
+          <View style={styles.pendingHeaderRow}>
+            <Text style={[styles.pendingCountText, { color: colors.subtext }]}>
+              {t('fe2.chat.pending_attachments_label', {
+                count: pendingAttachments.length,
+                max: MAX_ATTACHMENTS_PER_MESSAGE,
+              })}
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pendingScroll}
+          >
+            {pendingAttachments.map((att) => (
+              <View
+                key={att.id}
                 style={[
-                  styles.loadOlderText,
-                  { color: olderLoaded ? colors.placeholder : colors.primary },
+                  styles.pendingChip,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
                 ]}
               >
-                {olderLoaded ? t('fe2.chat.older_loaded') : t('fe2.chat.load_older_btn')}
-              </Text>
-            </TouchableOpacity>
-          }
-          renderItem={({ item }) => <ChatBubble message={item} onRetry={handleRetry} />}
-          contentContainerStyle={styles.list}
-        />
+                {att.kind === 'image' && att.uri ? (
+                  <Image source={{ uri: att.uri }} style={styles.pendingThumb} />
+                ) : (
+                  <Text style={{ fontSize: 13 }}>📄</Text>
+                )}
+                <Text
+                  style={[styles.pendingChipText, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {att.fileName}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleRemovePendingAttachment(att.id)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <X size={14} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
       )}
 
       <View style={styles.inputBar}>
         <TouchableOpacity
           style={[
-            styles.locationBtn,
+            styles.actionIconBtn,
+            { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+          ]}
+          onPress={handleOpenAttachmentSheet}
+          accessibilityLabel={t('fe2.chat.attach_file_btn')}
+        >
+          <Paperclip size={18} color={colors.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionIconBtn,
             { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
           ]}
           onPress={handleShareLocation}
+          disabled={isLocating}
           accessibilityLabel={t('fe2.chat.share_location_btn')}
         >
-          <MapPin size={18} color={colors.primary} />
+          {isLocating ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <MapPin size={18} color={colors.primary} />
+          )}
         </TouchableOpacity>
+
         <TextInput
           style={styles.input}
           placeholder={t('fe2.chat.input_placeholder')}
@@ -306,16 +554,25 @@ export default function ChatScreen() {
           value={inputText}
           onChangeText={setInputText}
           multiline
-          maxLength={500}
+          maxLength={2000}
         />
+
         <TouchableOpacity
-          style={[styles.sendBtn, !inputText.trim() && { backgroundColor: colors.border }]}
+          style={[styles.sendBtn, !canSend && { backgroundColor: colors.border }]}
           onPress={handleSend}
-          disabled={!inputText.trim()}
+          disabled={!canSend}
         >
           <Text style={styles.sendIcon}>➤</Text>
         </TouchableOpacity>
       </View>
+
+      <ChatAttachmentSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        onPickLibrary={handlePickLibrary}
+        onTakePhoto={handleTakePhoto}
+        onPickDocument={handlePickDocument}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -339,6 +596,16 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
       borderRadius: 10,
     },
     pinnedBtnText: { fontSize: 11, fontWeight: '700' },
+    feedbackBanner: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+    },
+    feedbackBannerText: {
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 17,
+    },
     loadOlderBtn: {
       alignSelf: 'center',
       paddingHorizontal: 14,
@@ -348,6 +615,46 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     loadOlderText: { fontSize: 12, fontWeight: '600' },
     list: { padding: 16, gap: 2 },
+    pendingStrip: {
+      borderTopWidth: 1,
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 4,
+      gap: 6,
+    },
+    pendingHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pendingCountText: {
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    pendingScroll: {
+      gap: 8,
+      paddingVertical: 2,
+    },
+    pendingChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 12,
+      borderWidth: 1,
+      maxWidth: 215,
+    },
+    pendingThumb: {
+      width: 26,
+      height: 26,
+      borderRadius: 6,
+    },
+    pendingChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      flexShrink: 1,
+    },
     inputBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -357,10 +664,10 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
       borderTopWidth: 1,
       borderTopColor: c.divider,
     },
-    locationBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+    actionIconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
@@ -369,7 +676,7 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
       flex: 1,
       backgroundColor: c.surfaceAlt,
       borderRadius: 20,
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
       paddingVertical: 8,
       fontSize: 14,
       maxHeight: 100,
@@ -377,9 +684,9 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
     },
     sendBtn: {
       backgroundColor: c.primary,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: 'center',
       justifyContent: 'center',
     },
