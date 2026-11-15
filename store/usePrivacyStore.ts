@@ -4,6 +4,8 @@ import { privacyService } from '@/services/privacyService';
 import type { SavePrivacySettingsRequest } from '@/types/api';
 import { PrivacySettings, SharingMode, SelectedFriend } from '../types/privacy';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const MOCK_FRIENDS: SelectedFriend[] = [
   { id: 'u2', displayName: 'Huy Tran', avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' },
   { id: 'u3', displayName: 'Bao Linh', avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop' },
@@ -44,20 +46,23 @@ function buildSavePayload(
   next: PrivacySettings,
   fallbackFriendId?: string
 ): SavePrivacySettingsRequest {
+  let sharingMode = next.sharingMode;
   let sharingExpiresAt = next.sharingExpiresAt;
-  let selectedFriendIds = [...next.selectedFriendIds];
+  let selectedFriendIds = next.selectedFriendIds.filter((id) => UUID_REGEX.test(id));
 
-  if (next.sharingMode === 'off') {
+  if (sharingMode === 'off') {
     sharingExpiresAt = null;
     selectedFriendIds = [];
-  } else if (next.sharingMode === 'selected_friends' && selectedFriendIds.length === 0) {
-    if (fallbackFriendId) {
+  } else if (sharingMode === 'selected_friends' && selectedFriendIds.length === 0) {
+    if (fallbackFriendId && UUID_REGEX.test(fallbackFriendId)) {
       selectedFriendIds = [fallbackFriendId];
+    } else {
+      sharingMode = 'friends';
     }
   }
 
   return {
-    sharingMode: next.sharingMode,
+    sharingMode,
     sharingExpiresAt,
     useApproximateLocation: next.useApproximateLocation,
     nearbyFeatureEnabled: next.nearbyFeatureEnabled,
