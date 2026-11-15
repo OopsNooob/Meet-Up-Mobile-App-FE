@@ -31,9 +31,15 @@ interface FriendSelectionModalProps {
   friends: FriendItem[];
   selectedFriendIds: string[];
   onSave: (newSelectedIds: string[]) => void;
+  title?: string;
+  saveLabel?: string;
+  maxSelected?: number | null;
+  selectedCountLabel?: (count: number) => string;
+  emptySelectionNote?: string | null;
 }
 
 const INITIAL_FRIENDS_PAGE = 6;
+const DEFAULT_MAX_SELECTED = 100;
 const LOAD_MORE_FRIENDS_STEP = 3;
 
 export function FriendSelectionModal(props: FriendSelectionModalProps) {
@@ -47,8 +53,14 @@ function FriendSelectionContent({
   friends,
   selectedFriendIds,
   onSave,
+  title,
+  saveLabel,
+  maxSelected = DEFAULT_MAX_SELECTED,
+  selectedCountLabel,
+  emptySelectionNote,
 }: FriendSelectionModalProps) {
   const { t } = useTranslation();
+  const emptyNote = emptySelectionNote === undefined ? t('fe2.location.auto_downgrade_note') : emptySelectionNote;
   const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [tempSelected, setTempSelected] = useState<Set<string>>(() => new Set(selectedFriendIds));
@@ -105,7 +117,7 @@ function FriendSelectionContent({
       if (next.has(id)) {
         next.delete(id);
       } else {
-        if (next.size >= 100) return next;
+        if (maxSelected !== null && next.size >= maxSelected) return next;
         next.add(id);
       }
       return next;
@@ -286,7 +298,7 @@ function FriendSelectionContent({
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Users size={20} color={colors.primary} />
-              <Text style={styles.headerTitle}>{t('fe2.location.manage_selected_friends')}</Text>
+              <Text style={styles.headerTitle}>{title ?? t('fe2.location.manage_selected_friends')}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <X size={20} color={colors.subtext} />
@@ -296,7 +308,7 @@ function FriendSelectionContent({
           {/* SubHeader: Selected Count & Select All */}
           <View style={styles.subHeader}>
             <Text style={styles.selectedCountText}>
-              {t('fe2.location.selected_count', { count: tempSelected.size })}
+              {selectedCountLabel?.(tempSelected.size) ?? t('fe2.location.selected_count', { count: tempSelected.size })}
             </Text>
             <TouchableOpacity onPress={handleToggleSelectAll} style={styles.toggleAllBtn}>
               <Text style={styles.toggleAllText}>
@@ -388,17 +400,17 @@ function FriendSelectionContent({
           />
 
           {/* Auto-downgrade Warning when 0 friends selected */}
-          {tempSelected.size === 0 && (
+          {tempSelected.size === 0 && emptyNote && (
             <View style={styles.warningBanner}>
               <AlertTriangle size={16} color={colors.warning} />
-              <Text style={styles.warningText}>{t('fe2.location.auto_downgrade_note')}</Text>
+              <Text style={styles.warningText}>{emptyNote}</Text>
             </View>
           )}
 
           {/* Footer Action */}
           <View style={styles.footer}>
             <Button
-              label={t('fe2.location.save_selection')}
+              label={saveLabel ?? t('fe2.location.save_selection')}
               variant="primary"
               fullWidth
               onPress={handleSave}

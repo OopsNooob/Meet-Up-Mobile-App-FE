@@ -35,7 +35,14 @@
     "confirm_password_required": "Please re-enter your password",
     "confirm_password_mismatch": "Passwords do not match",
     "display_name_required": "Please enter a display name",
-    "display_name_too_long": "Display name can be at most {{max}} characters"
+    "display_name_too_long": "Display name can be at most {{max}} characters",
+    "meetup_title_required": "Please enter a meetup name",
+    "meetup_title_too_long": "Meetup name must be at most {{max}} characters",
+    "meetup_time_required": "Please choose a time",
+    "meetup_time_too_soon": "Meetup time must be at least {{minutes}} minutes from now",
+    "meetup_place_type_required": "Please choose a place type",
+    "meetup_radius_required": "Please choose a search radius",
+    "meetup_invitees_required": "Please invite at least 1 friend"
   },
   "tabs": {
     "map": "Map",
@@ -45,7 +52,104 @@
   },
   "meetup": {
     "create": "Create Meetup",
-    "list_empty": "No active meetups."
+    "list_empty": "No active meetups.",
+    "member_unknown": "Member",
+    "back_to_list": "Back to list",
+    "edit_choosing_warning": "The group is choosing a place. Changing time, type or radius may make the current suggestions outdated.",
+    "place_types": {
+      "cafe": "Cafe",
+      "restaurant": "Restaurant",
+      "bar": "Bar",
+      "movie_theater": "Cinema",
+      "shopping_mall": "Shopping mall",
+      "park": "Park",
+      "bowling_alley": "Bowling"
+    },
+    "form": {
+      "title": "Meetup name",
+      "title_placeholder": "e.g. Weekend coffee",
+      "scheduled_at": "Meetup time",
+      "scheduled_at_hint": "Pick a time at least {{minutes}} minutes from now",
+      "place_type": "Place type",
+      "radius": "Place search radius",
+      "radius_hint": "Suggested places will be within this radius around the group.",
+      "members": "Members",
+      "members_selected": "{{count}} selected",
+      "members_more": "+{{count}} more",
+      "members_hint": "No limit on the number of participants.",
+      "pick_members": "Choose friends",
+      "pick_members_done": "Done",
+      "remove_member": "Remove {{name}}",
+      "friends_load_failed": "Could not load your friends",
+      "no_friends_title": "You have no friends yet",
+      "no_friends_message": "Add friends first to invite them.",
+      "fix_errors": "Please check the highlighted fields.",
+      "submit_failed": "Meetup not saved",
+      "submit_create": "Create meetup",
+      "submit_edit": "Save changes"
+    },
+    "detail": {
+      "scheduled_at": "Time",
+      "place_type": "Place type",
+      "radius": "Search radius",
+      "invitation_deadline": "Invitation response deadline",
+      "organizer": "Organizer",
+      "organizer_me": "{{name}} (you)",
+      "members_title": "Members ({{count}})",
+      "members_summary": "{{accepted}} joined · {{invited}} pending · {{declined}} declined",
+      "members_empty": "No members yet",
+      "members_show_all": "Show all {{count}} members",
+      "members_collapse": "Collapse",
+      "role_organizer": "Organizer",
+      "role_me": "You",
+      "activities_title": "Group activities"
+    },
+    "banner": {
+      "cancelled_title": "Meetup cancelled",
+      "cancelled_message": "All actions on this meetup are locked.",
+      "cancelled_at": "Cancelled at {{time}}. All actions on this meetup are locked.",
+      "selected_title": "Place finalized",
+      "selected_message": "This meetup is finalized and can no longer be edited.",
+      "selected_organizer": "This meetup is finalized and can no longer be edited. You can still cancel it if needed.",
+      "finished_title": "Meetup finished",
+      "finished_message": "This meetup has taken place."
+    },
+    "action": {
+      "edit": "Edit",
+      "cancel": "Cancel meetup"
+    },
+    "cancel_confirm": {
+      "title": "Cancel meetup?",
+      "message": "\"{{title}}\" will be cancelled for all members. This cannot be undone.",
+      "confirm": "Cancel meetup",
+      "keep": "Keep"
+    },
+    "edit_locked": {
+      "title": "Cannot edit a {{status}} meetup",
+      "not_organizer_title": "You are not the organizer",
+      "back_to_detail": "Back to meetup"
+    },
+    "toast": {
+      "created": "Meetup created and invitations sent",
+      "updated": "Changes saved",
+      "cancelled": "Meetup cancelled"
+    },
+    "list": {
+      "empty_description": "Create a meetup and invite friends to pick a place together.",
+      "organizer_badge": "Yours",
+      "within": "within {{radius}}"
+    },
+    "errors": {
+      "meetup_not_found": "This meetup does not exist or was deleted.",
+      "not_found_title": "Meetup not found",
+      "not_member_title": "No access",
+      "not_member": "You are not a member of this meetup.",
+      "not_organizer": "Only the organizer can do this.",
+      "not_editable": "This meetup is finalized, cancelled or finished and cannot be changed.",
+      "invalid_schedule": "The meetup time is invalid or in the past.",
+      "invitee_not_friend": "Someone you invited is no longer your friend.",
+      "partial_saved": "Some changes were saved, the rest failed:"
+    }
   },
   "fe2": {
     "common": {
@@ -575,7 +679,9 @@
     "meetup_finished": "Finished",
     "member_invited": "Invited",
     "member_accepted": "Going",
-    "member_declined": "Declined"
+    "member_declined": "Declined",
+    "member_left": "Left",
+    "member_removed": "Removed"
   },
   "errors": {
     "offline": {

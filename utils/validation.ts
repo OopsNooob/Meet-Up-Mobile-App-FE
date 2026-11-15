@@ -51,3 +51,26 @@ export function validateRegister(input: Record<RegisterField, string>): FieldErr
         : undefined,
   };
 }
+export type MeetupFormField = 'title' | 'scheduledAt' | 'placeType' | 'searchRadiusM' | 'inviteeIds';
+
+export function validateMeetupForm(
+  input: { title: string; scheduledAt: Date; placeType: string | null; searchRadiusM: number; inviteeIds: string[] },
+  options: { minScheduledAt: Date; titleMaxLength: number },
+): FieldErrors<MeetupFormField> {
+  const title = input.title.trim();
+  return {
+    title: !title
+      ? 'validation.meetup_title_required'
+      : title.length > options.titleMaxLength
+        ? 'validation.meetup_title_too_long'
+        : undefined,
+    scheduledAt: Number.isNaN(input.scheduledAt.getTime())
+      ? 'validation.meetup_time_required'
+      : input.scheduledAt.getTime() < options.minScheduledAt.getTime()
+        ? 'validation.meetup_time_too_soon'
+        : undefined,
+    placeType: input.placeType ? undefined : 'validation.meetup_place_type_required',
+    searchRadiusM: input.searchRadiusM > 0 ? undefined : 'validation.meetup_radius_required',
+    inviteeIds: input.inviteeIds.length > 0 ? undefined : 'validation.meetup_invitees_required',
+  };
+}
