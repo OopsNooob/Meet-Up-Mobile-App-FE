@@ -4,7 +4,7 @@
  * - Reconnect an toàn, không nhân đôi listener
  * - Subscribe/unsubscribe event vị trí và meetup
  */
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from '@/services/apiClient';
 import { onLogout, useAuthStore } from '../store/useAuthStore';
@@ -17,6 +17,8 @@ export type SocketEvent =
   | 'location:updated'
   | 'LocationUpdated'
   | 'LocationUpdated.v1'
+  | 'friend:location:updated'
+  | 'friend:location:unavailable'
   | 'MeetupCreated.v1'
   | 'MeetupUpdated.v1'
   | 'MeetupCancelled.v1'
@@ -56,12 +58,40 @@ export type LocationUpdatedPayload = {
   };
 };
 
+type SocketStatus = 'connected' | 'disconnected';
+
 let globalSocket: Socket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let currentStatus: SocketStatus = 'disconnected';
+const statusListeners = new Set<() => void>();
 const processedEventIds = new Set<string>();
 
+function notifyStatus(next: SocketStatus) {
+  if (currentStatus === next) return;
+  currentStatus = next;
+  statusListeners.forEach((listener) => listener());
+}
+
+function subscribeStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => {
+    statusListeners.delete(listener);
+  };
+}
+
+function getStatusSnapshot(): SocketStatus {
+  return currentStatus;
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
 function startHeartbeat() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  stopHeartbeat();
   heartbeatTimer = setInterval(() => {
     if (globalSocket?.connected) {
       globalSocket.emit('presence:heartbeat');
@@ -69,60 +99,52 @@ function startHeartbeat() {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
+function ensureSocketConnected() {
+  if (!globalSocket) {
+    const socket = io(SOCKET_URL, {
+      auth: (cb) => {
+        cb({ token: useAuthStore.getState().accessToken });
+      },
+      transports: ['websocket'],
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15_000,
+    });
+
+    socket.on('connect', () => {
+      startHeartbeat();
+      socket.emit('presence:heartbeat');
+      notifyStatus('connected');
+    });
+
+    socket.on('disconnect', () => {
+      stopHeartbeat();
+      notifyStatus('disconnected');
+    });
+
+    socket.on('connect_error', (err: Error) => {
+      notifyStatus('disconnected');
+      console.warn('[Socket] Connection error:', err.message);
+    });
+
+    globalSocket = socket;
+    return;
+  }
+
+  if (!globalSocket.active) {
+    globalSocket.connect();
+  }
+}
+
 export function useSocket() {
   const token = useAuthStore((s) => s.accessToken);
   const listenerMapRef = useRef<Map<string, (...args: unknown[]) => void>>(new Map());
-  const [status, setStatus] = useState<'connected' | 'disconnected'>(() =>
-    globalSocket?.connected ? 'connected' : 'disconnected'
-  );
+  const status = useSyncExternalStore(subscribeStatus, getStatusSnapshot, getStatusSnapshot);
 
-  // Khởi tạo kết nối 1 lần duy nhất
+  // Khởi tạo kết nối 1 lần duy nhất ở tầng singleton
   useEffect(() => {
-    if (!token) {
-      setStatus('disconnected');
-      return;
-    }
-
-    if (!globalSocket) {
-      globalSocket = io(SOCKET_URL, {
-        auth: { token },
-        transports: ['websocket'],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000,
-      });
-    } else if (!globalSocket.connected) {
-      globalSocket.auth = { token };
-      globalSocket.connect();
-    }
-
-    const socket = globalSocket;
-    const handleConnect = () => {
-      setStatus('connected');
-      startHeartbeat();
-      socket.emit('presence:heartbeat');
-    };
-    const handleDisconnect = () => {
-      setStatus('disconnected');
-    };
-    const handleConnectError = (err: Error) => {
-      setStatus('disconnected');
-      console.warn('[Socket] Connection error:', err.message);
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('connect_error', handleConnectError);
-
-    if (socket.connected) {
-      setStatus('connected');
-      startHeartbeat();
-    }
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('connect_error', handleConnectError);
-    };
+    if (!token) return;
+    ensureSocketConnected();
   }, [token]);
 
   /**
@@ -194,13 +216,12 @@ onLogout(() => disconnectSocket());
 
 /** Gọi khi logout để ngắt kết nối hoàn toàn */
 export function disconnectSocket() {
-  if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
-  }
+  stopHeartbeat();
   if (globalSocket) {
+    globalSocket.removeAllListeners();
     globalSocket.disconnect();
     globalSocket = null;
     console.log('[Socket] Disconnected by user logout');
   }
+  notifyStatus('disconnected');
 }

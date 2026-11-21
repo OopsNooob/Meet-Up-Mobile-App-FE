@@ -3,6 +3,7 @@
  */
 import { apiClient, toApiError } from '@/services/apiClient';
 import type {
+  FriendLiveLocationsResponse,
   LocationPermissionParams,
   LocationPermissionResponse,
   ProjectedLocationResponse,
@@ -40,6 +41,14 @@ export const locationService = {
           },
         }
       );
+      return data;
+    });
+  },
+
+  /** GET /friends/live-locations */
+  listFriendLiveLocations(): Promise<FriendLiveLocationsResponse> {
+    return call(async () => {
+      const { data } = await apiClient.get<FriendLiveLocationsResponse>('/friends/live-locations');
       return data;
     });
   },

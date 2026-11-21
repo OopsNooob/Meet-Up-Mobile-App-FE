@@ -269,7 +269,8 @@
       "my_status_approx": "🛡️ ~1.1 km",
       "my_status_precise": "📍 Precise",
       "simulate_move_btn": "Refresh",
-      "toggle_socket_btn": "Switch connection"
+      "toggle_socket_btn": "Switch connection",
+      "loading_live_locations": "Updating friend locations..."
     },
     "recommendation": {
       "screen_title": "Place Suggestions",
@@ -516,6 +517,8 @@
     "fcm": {
       "meetup_invite_title": "🎉 You have a new meetup invitation!",
       "meetup_invite_body": "Viet invited you to join a weekend meetup.",
+      "meetup_updated_title": "📝 Meetup details updated",
+      "meetup_updated_body": "Your meetup details changed. Tap to see the latest update.",
       "meetup_finalized_title": "📍 Meetup place finalized",
       "meetup_finalized_body": "The Coffee House - Nguyen Hue was chosen as the official meetup spot.",
       "meetup_reminder_title": "⏰ Your meetup starts soon",
@@ -551,7 +554,12 @@
       "warn_closing_soon": "Closes fairly soon after meetup time",
       "warn_bad_weather": "Outdoor space with rain forecast at meetup time",
       "warn_regular_hours": "Opening status based on regular weekly schedule",
-      "warn_unknown_hours": "Opening hours are not yet verified on the map"
+      "warn_unknown_hours": "Opening hours are not yet verified on the map",
+      "highlight_fair": "Average travel time {{avg}} min, farthest member {{max}} min.",
+      "source_ai_badge": "✨ Gemini AI Summary",
+      "source_fallback_badge": "💡 Standard Highlights",
+      "fetch_fallback_title": "Showing standard summary",
+      "fetch_fallback_msg": "AI explanation is temporarily unavailable. Key place highlights are still shown below."
     },
     "nearby": {
       "screen_title": "Nearby Friends",
@@ -585,7 +593,9 @@
       "state_chip_cooldown": "⏱ Paused for 2 hours",
       "state_chip_detected": "🎉 Friends nearby",
       "loading_more_nearby": "Scanning for more nearby friends...",
-      "all_nearby_loaded": "Showing all nearby friends"
+      "all_nearby_loaded": "Showing all nearby friends",
+      "detected_friend_hint": "You and {{name}} are nearby right now. Create a meetup if you'd like to hang out!",
+      "approx_nearby_label": "Nearby area"
     },
     "notifications": {
       "in_app_title": "New Notification",
@@ -647,7 +657,17 @@
       "start_scenario_2": "🌦️ Preview Rescheduled Time & Rainy Weather",
       "start_scenario_3": "🗺️ Open Friend Map in Approximate Mode",
       "reset_done_msg": "All location privacy and suggestion settings have been restored to defaults.",
-      "reset_toast": "All settings restored to default!"
+      "reset_toast": "All settings restored to default!",
+      "system_health_title": "Backend System Status",
+      "system_api_label": "API Server (Liveness):",
+      "system_postgres_label": "PostgreSQL:",
+      "system_redis_label": "Redis:",
+      "system_outbox_label": "Outbox Worker:",
+      "system_status_up": "Up",
+      "system_status_down": "Not ready",
+      "system_status_offline": "Offline",
+      "system_recheck_btn": "Recheck Backend Health",
+      "system_latency_unavailable": "--"
     }
   },
   "common": {

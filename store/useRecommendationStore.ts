@@ -4,6 +4,7 @@ import type { AppError } from '@/types/async';
 import { recommendationService } from '@/services/recommendationService';
 import { locationService } from '@/services/locationService';
 import type {
+  AiExplanationItem,
   CandidateSearchResponse,
   MeetupDetailResponse,
   RecommendationFeedbackEventType,
@@ -1172,6 +1173,12 @@ interface RecommendationState {
   feedbackLogs: FeedbackLogEntry[];
   simulateSilentFeedbackError: boolean;
 
+  // AI Explanation Cache per Run (BE-27 / FE-16)
+  aiExplanationsByCandidateKey: Record<string, AiExplanationItem['explanation']>;
+  aiExplanationsRunId: string | null;
+  isAiExplanationLoading: boolean;
+  aiExplanationError: AppError | null;
+
   // Base places
   basePlaces: RecommendationPlaceItem[];
 
@@ -1222,6 +1229,11 @@ interface RecommendationState {
     rank?: number
   ) => Promise<void>;
   replayRunOnServer: (meetupId: string) => Promise<ReplayRecommendationRunResponse | null>;
+  loadAiExplanationsForRun: (
+    meetupId: string,
+    explicitRunId?: string,
+    force?: boolean
+  ) => Promise<boolean>;
 
   // Scenario Toggles (QoL Demo Tools)
   toggleStaleContextScenario: () => void;
@@ -1282,6 +1294,11 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
   impressedRunIds: [],
   feedbackLogs: [],
   simulateSilentFeedbackError: false,
+
+  aiExplanationsByCandidateKey: {},
+  aiExplanationsRunId: null,
+  isAiExplanationLoading: false,
+  aiExplanationError: null,
 
   basePlaces: INITIAL_PLACES,
 
@@ -1383,6 +1400,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
             hasServerData: false,
             votedCandidateKey: null,
             finalizedCandidateKey: null,
+            aiExplanationsByCandidateKey: {},
+            aiExplanationsRunId: null,
+            aiExplanationError: null,
           }),
     });
     try {
@@ -1448,6 +1468,7 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
           )?.canonicalCandidateKey ?? null
         : null;
 
+      const keepAiCache = get().aiExplanationsRunId === run.id;
       set({
         activeMeetupId: meetupId,
         activeMeetupDetail: meetup,
@@ -1467,6 +1488,13 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
         basePlaces: mappedPlaces,
         finalizedCandidateKey: finalizedPlace,
         favoriteCandidateKeys: favorites.map((f) => f.canonicalCandidateKey),
+        ...(keepAiCache
+          ? {}
+          : {
+              aiExplanationsByCandidateKey: {},
+              aiExplanationsRunId: null,
+              aiExplanationError: null,
+            }),
         isApiLoading: false,
         hasServerData: true,
         apiError: null,
@@ -1541,6 +1569,9 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
         basePlaces: mappedPlaces,
         votedCandidateKey: null,
         finalizedCandidateKey: null,
+        aiExplanationsByCandidateKey: {},
+        aiExplanationsRunId: null,
+        aiExplanationError: null,
         isApiLoading: false,
         hasServerData: true,
         apiError: null,
@@ -1720,6 +1751,48 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
     }
   },
 
+  loadAiExplanationsForRun: async (meetupId: string, explicitRunId?: string, force = false) => {
+    const state = get();
+    const targetRunId = explicitRunId ?? state.runId;
+    if (!UUID_REGEX.test(meetupId) || !UUID_REGEX.test(targetRunId)) {
+      return false;
+    }
+    if (
+      !force &&
+      state.aiExplanationsRunId === targetRunId &&
+      Object.keys(state.aiExplanationsByCandidateKey).length > 0
+    ) {
+      return true;
+    }
+    set({
+      isAiExplanationLoading: true,
+      aiExplanationError: null,
+      ...(state.aiExplanationsRunId !== targetRunId
+        ? { aiExplanationsByCandidateKey: {}, aiExplanationsRunId: null }
+        : {}),
+    });
+    try {
+      const res = await recommendationService.getAiExplanations(meetupId, targetRunId);
+      const map: Record<string, AiExplanationItem['explanation']> = {};
+      for (const item of res.items) {
+        map[item.canonicalCandidateKey] = item.explanation;
+      }
+      set({
+        aiExplanationsByCandidateKey: map,
+        aiExplanationsRunId: res.runId,
+        isAiExplanationLoading: false,
+        aiExplanationError: null,
+      });
+      return true;
+    } catch (err) {
+      set({
+        isAiExplanationLoading: false,
+        aiExplanationError: err as AppError,
+      });
+      return false;
+    }
+  },
+
   setOpeningFilter: (openingFilter) => set({ openingFilter }),
   setSortBy: (sortBy) => set({ sortBy }),
   setWeatherPolicy: (weatherPolicy) => set({ weatherPolicy }),
@@ -1796,6 +1869,10 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
       effectiveRoutingPreference: 'TRAFFIC_AWARE',
       votedCandidateKey: null,
       finalizedCandidateKey: null,
+      aiExplanationsByCandidateKey: {},
+      aiExplanationsRunId: null,
+      isAiExplanationLoading: false,
+      aiExplanationError: null,
       basePlaces: INITIAL_PLACES,
       memberTravelModes: {
         u1: 'TWO_WHEELER',

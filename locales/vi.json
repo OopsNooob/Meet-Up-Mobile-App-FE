@@ -269,7 +269,8 @@
       "my_status_approx": "🛡️ ~1.1 km",
       "my_status_precise": "📍 Chính xác",
       "simulate_move_btn": "Làm mới",
-      "toggle_socket_btn": "Đổi trạng thái mạng"
+      "toggle_socket_btn": "Đổi trạng thái mạng",
+      "loading_live_locations": "Đang cập nhật vị trí bạn bè..."
     },
     "recommendation": {
       "screen_title": "Gợi ý địa điểm",
@@ -516,6 +517,8 @@
     "fcm": {
       "meetup_invite_title": "🎉 Bạn có lời mời gặp mặt mới!",
       "meetup_invite_body": "Việt đã mời bạn tham gia buổi hẹn cuối tuần này.",
+      "meetup_updated_title": "📝 Lịch hẹn vừa được cập nhật",
+      "meetup_updated_body": "Thông tin cuộc hẹn vừa thay đổi. Chạm để xem chi tiết mới nhất.",
       "meetup_finalized_title": "📍 Địa điểm hẹn đã được chốt",
       "meetup_finalized_body": "The Coffee House - Nguyễn Huệ đã được chọn làm điểm hẹn chính thức.",
       "meetup_reminder_title": "⏰ Buổi hẹn của bạn sắp bắt đầu",
@@ -551,7 +554,12 @@
       "warn_closing_soon": "Quán đóng cửa khá gần giờ hẹn",
       "warn_bad_weather": "Quán ngoài trời và dự báo có mưa vào giờ hẹn",
       "warn_regular_hours": "Giờ mở cửa tính theo lịch thường ngày trong tuần",
-      "warn_unknown_hours": "Chưa có thông tin giờ mở cửa xác thực trên bản đồ"
+      "warn_unknown_hours": "Chưa có thông tin giờ mở cửa xác thực trên bản đồ",
+      "highlight_fair": "Thời gian di chuyển trung bình {{avg}} phút, xa nhất {{max}} phút.",
+      "source_ai_badge": "✨ Giải thích từ Gemini AI",
+      "source_fallback_badge": "💡 Giải thích tiêu chuẩn",
+      "fetch_fallback_title": "Đang hiển thị tóm tắt tiêu chuẩn",
+      "fetch_fallback_msg": "Chưa thể tải giải thích AI lúc này. Các tiêu chí chính của địa điểm vẫn hiển thị bên dưới."
     },
     "nearby": {
       "screen_title": "Bạn bè ở gần",
@@ -585,7 +593,9 @@
       "state_chip_cooldown": "⏱ Tạm nghỉ 2 giờ",
       "state_chip_detected": "🎉 Có bạn ở gần",
       "loading_more_nearby": "Đang quét thêm bạn bè trong khu vực...",
-      "all_nearby_loaded": "Đã hiển thị tất cả bạn bè ở gần"
+      "all_nearby_loaded": "Đã hiển thị tất cả bạn bè ở gần",
+      "detected_friend_hint": "Bạn và {{name}} hiện đang ở gần nhau. Hãy tạo cuộc hẹn nếu muốn gặp mặt!",
+      "approx_nearby_label": "Trong khu vực gần bạn"
     },
     "notifications": {
       "in_app_title": "Thông báo mới",
@@ -647,7 +657,17 @@
       "start_scenario_2": "🌦️ Mở tình huống Đổi giờ hẹn & Trời mưa",
       "start_scenario_3": "🗺️ Mở Bản đồ bạn bè ở chế độ vị trí gần đúng",
       "reset_done_msg": "Đã khôi phục toàn bộ cài đặt vị trí và gợi ý về trạng thái mặc định.",
-      "reset_toast": "Đã khôi phục toàn bộ cài đặt về mặc định!"
+      "reset_toast": "Đã khôi phục toàn bộ cài đặt về mặc định!",
+      "system_health_title": "Trạng thái hệ thống Backend",
+      "system_api_label": "Máy chủ API (Liveness):",
+      "system_postgres_label": "PostgreSQL:",
+      "system_redis_label": "Redis:",
+      "system_outbox_label": "Outbox Worker:",
+      "system_status_up": "Hoạt động",
+      "system_status_down": "Chưa sẵn sàng",
+      "system_status_offline": "Không kết nối",
+      "system_recheck_btn": "Kiểm tra lại kết nối Backend",
+      "system_latency_unavailable": "--"
     }
   },
   "common": {

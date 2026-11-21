@@ -104,35 +104,44 @@ export default function NotificationsTestScreen() {
   const handleTest = useSinglePress((type: NotifType) => {
     scheduleMockNotification(type, targetMeetupId);
 
+    const inviteMeta = {
+      title: t('fe2.dev_notifications.invite_title'),
+      body: t('fe2.dev_notifications.invite_body'),
+    };
+    const finalizedMeta = {
+      title: t('fe2.dev_notifications.finalized_title'),
+      body: t('fe2.dev_notifications.finalized_body'),
+    };
+    const cancelledMeta = {
+      title: t('fe2.dev_notifications.cancelled_title'),
+      body: t('fe2.dev_notifications.cancelled_body'),
+    };
+    const nearbyMeta = {
+      title: t('fe2.dev_notifications.nearby_title'),
+      body: t('fe2.dev_notifications.nearby_body'),
+    };
+
     const TITLES: Record<NotifType, { title: string; body: string }> = {
-      meetup_invite: {
-        title: t('fe2.dev_notifications.invite_title'),
-        body: t('fe2.dev_notifications.invite_body'),
+      meetup_invite: inviteMeta,
+      'meetup.invited': inviteMeta,
+      'meetup.updated': {
+        title: t('fe2.fcm.meetup_updated_title'),
+        body: t('fe2.fcm.meetup_updated_body'),
       },
-      meetup_finalized: {
-        title: t('fe2.dev_notifications.finalized_title'),
-        body: t('fe2.dev_notifications.finalized_body'),
-      },
-      'meetup.finalized': {
-        title: t('fe2.dev_notifications.finalized_title'),
-        body: t('fe2.dev_notifications.finalized_body'),
-      },
+      meetup_finalized: finalizedMeta,
+      'meetup.finalized': finalizedMeta,
       meetup_reminder: {
         title: t('fe2.dev_notifications.reminder_title'),
         body: t('fe2.dev_notifications.reminder_body'),
       },
-      meetup_cancelled: {
-        title: t('fe2.dev_notifications.cancelled_title'),
-        body: t('fe2.dev_notifications.cancelled_body'),
-      },
+      meetup_cancelled: cancelledMeta,
+      'meetup.cancelled': cancelledMeta,
       recommendation_ready: {
         title: t('fe2.dev_notifications.recommendations_title'),
         body: t('fe2.dev_notifications.recommendations_body'),
       },
-      nearby_detected: {
-        title: t('fe2.dev_notifications.nearby_title'),
-        body: t('fe2.dev_notifications.nearby_body'),
-      },
+      nearby_detected: nearbyMeta,
+      'nearby.friend': nearbyMeta,
     };
 
     const item = TITLES[type];
