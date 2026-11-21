@@ -45,23 +45,45 @@ Notifications?.setNotificationHandler({
 // ──── Deep link mapping theo notification type ────────────────────────────
 export type NotifType =
   | 'meetup_invite'
+  | 'meetup.invited'
+  | 'meetup.updated'
   | 'meetup_finalized'
   | 'meetup.finalized'
   | 'meetup_reminder'
   | 'meetup_cancelled'
+  | 'meetup.cancelled'
   | 'recommendation_ready'
-  | 'nearby_detected';
+  | 'nearby_detected'
+  | 'nearby.friend';
+
+const NOTIFICATION_KEY_MAP: Record<NotifType, string> = {
+  meetup_invite: 'meetup_invite',
+  'meetup.invited': 'meetup_invite',
+  'meetup.updated': 'meetup_updated',
+  meetup_finalized: 'meetup_finalized',
+  'meetup.finalized': 'meetup_finalized',
+  meetup_reminder: 'meetup_reminder',
+  meetup_cancelled: 'meetup_cancelled',
+  'meetup.cancelled': 'meetup_cancelled',
+  recommendation_ready: 'recommendation_ready',
+  nearby_detected: 'nearby_detected',
+  'nearby.friend': 'nearby_detected',
+};
 
 function navigateFromNotification(data: Record<string, unknown>) {
   const type = data?.type as NotifType | undefined;
   const meetupId = (data?.meetupId as string | undefined) ?? 'meetup-1';
   const placeId = data?.placeId as string | undefined;
+  const friendId = typeof data?.friendId === 'string' ? data.friendId : undefined;
 
   if (!type) return;
 
   switch (type) {
     case 'meetup_invite':
+    case 'meetup.invited':
+    case 'meetup.updated':
     case 'meetup_cancelled':
+    case 'meetup.cancelled':
       router.push(routes.meetupDetail(meetupId));
       break;
     case 'meetup_finalized':
@@ -79,7 +101,12 @@ function navigateFromNotification(data: Record<string, unknown>) {
       router.push(routes.meetupRecommendations(meetupId));
       break;
     case 'nearby_detected':
-      router.push(routes.settingsNearby);
+    case 'nearby.friend':
+      if (friendId) {
+        router.push({ pathname: routes.settingsNearby, params: { friendId } });
+      } else {
+        router.push(routes.settingsNearby);
+      }
       break;
     default:
       router.push(routes.tabMeetups);
@@ -229,7 +256,7 @@ export async function scheduleMockNotification(type: NotifType, meetupId = 'meet
   if (!Notifications) {
     return;
   }
-  const normalizedType = type === 'meetup.finalized' ? 'meetup_finalized' : type;
+  const normalizedType = NOTIFICATION_KEY_MAP[type] ?? type;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: i18n.t(`fe2.fcm.${normalizedType}_title` as any),

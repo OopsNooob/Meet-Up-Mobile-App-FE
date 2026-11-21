@@ -4,6 +4,7 @@
 import { apiClient, toApiError } from '@/services/apiClient';
 import { generateUuidV4 } from '@/utils/uuid';
 import type {
+  AiExplanationListResponse,
   CandidateSearchResponse,
   CastMeetupVoteResponse,
   CreateRecommendationRunRequest,
@@ -126,6 +127,16 @@ export const recommendationService = {
     return call(async () => {
       const { data } = await apiClient.post<ReplayRecommendationRunResponse>(
         `/meetups/${encodeURIComponent(meetupId)}/recommendation-runs/${encodeURIComponent(runId)}/replay`
+      );
+      return data;
+    });
+  },
+
+  /** GET /meetups/:meetupId/recommendation-runs/:runId/ai-explanations */
+  getAiExplanations(meetupId: UUID, runId: UUID): Promise<AiExplanationListResponse> {
+    return call(async () => {
+      const { data } = await apiClient.get<AiExplanationListResponse>(
+        `/meetups/${encodeURIComponent(meetupId)}/recommendation-runs/${encodeURIComponent(runId)}/ai-explanations`
       );
       return data;
     });

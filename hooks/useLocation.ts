@@ -28,7 +28,7 @@ export function useLocation() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [syncError, setSyncError] = useState<AppError | null>(null);
-  const { emit } = useSocket();
+  const { emit, isConnected } = useSocket();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { isEffectiveSharingActive } = usePrivacyStore();
@@ -136,12 +136,14 @@ export function useLocation() {
     const sample = await fetchRealSample(store.settings.useApproximateLocation);
     setLocation(sample);
     const recordedAt = sample.updatedAt.toISOString();
-    emit('location:update', {
-      latitude: sample.lat,
-      longitude: sample.lng,
-      accuracy: sample.accuracy,
-      recordedAt,
-    });
+    if (isConnected()) {
+      emit('location:update', {
+        latitude: sample.lat,
+        longitude: sample.lng,
+        accuracy: sample.accuracy,
+        recordedAt,
+      });
+    }
     try {
       await locationService.publishLocation({
         latitude: sample.lat,
@@ -154,7 +156,7 @@ export function useLocation() {
       setSyncError(toApiError(err));
     }
     return sample;
-  }, [emit, fetchRealSample, stopSharing]);
+  }, [emit, isConnected, fetchRealSample, stopSharing]);
 
   const startSharing = useCallback(async () => {
     const granted = permission === 'granted' ? true : await requestPermission();

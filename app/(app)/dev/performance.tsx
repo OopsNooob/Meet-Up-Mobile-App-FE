@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,31 @@ import { useSinglePress } from '@/hooks/useSinglePress';
 import { useRecommendationStore } from '@/store/useRecommendationStore';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { RecommendationScenarioModal } from '@/components/meetup/RecommendationScenarioModal';
+import { InlineAlert } from '@/components/common/InlineAlert';
+import { SkeletonBox } from '@/components/common/Skeleton';
 import { recommendationService } from '@/services/recommendationService';
+import { systemService } from '@/services/systemService';
+import { toApiError } from '@/services/apiClient';
+import type { AppError } from '@/types/async';
+import type { HealthResponse, NotReadyResponse, ReadyResponse } from '@/types/api';
 import { routes } from '@/constants/routes';
+
+async function fetchSystemStatus(): Promise<{
+  health: HealthResponse;
+  readiness: ReadyResponse | NotReadyResponse;
+  latencyMs: number;
+}> {
+  const startedAt = Date.now();
+  const [health, readiness] = await Promise.all([
+    systemService.getHealth(),
+    systemService.getReadiness(),
+  ]);
+  return {
+    health,
+    readiness,
+    latencyMs: Date.now() - startedAt,
+  };
+}
 
 export default function PerformanceScreen() {
   const { t } = useTranslation();
@@ -32,6 +55,28 @@ export default function PerformanceScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scenarioModalVisible, setScenarioModalVisible] = useState(false);
   const [targetMeetupId, setTargetMeetupId] = useState('meetup-1');
+  const [healthData, setHealthData] = useState<HealthResponse | null>(null);
+  const [readinessData, setReadinessData] = useState<ReadyResponse | NotReadyResponse | null>(null);
+  const [healthError, setHealthError] = useState<AppError | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [isCheckingSystem, setIsCheckingSystem] = useState(true);
+
+  const checkSystemHealth = useCallback(async () => {
+    try {
+      const snapshot = await fetchSystemStatus();
+      setHealthData(snapshot.health);
+      setReadinessData(snapshot.readiness);
+      setHealthError(null);
+      setLatencyMs(snapshot.latencyMs);
+    } catch (err) {
+      setHealthError(toApiError(err));
+      setHealthData(null);
+      setReadinessData(null);
+      setLatencyMs(null);
+    } finally {
+      setIsCheckingSystem(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -44,6 +89,24 @@ export default function PerformanceScreen() {
         }
       })
       .catch(() => undefined);
+    fetchSystemStatus()
+      .then((snapshot) => {
+        if (!active) return;
+        setHealthData(snapshot.health);
+        setReadinessData(snapshot.readiness);
+        setHealthError(null);
+        setLatencyMs(snapshot.latencyMs);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setHealthError(toApiError(err));
+        setHealthData(null);
+        setReadinessData(null);
+        setLatencyMs(null);
+      })
+      .finally(() => {
+        if (active) setIsCheckingSystem(false);
+      });
     return () => {
       active = false;
     };
@@ -67,12 +130,16 @@ export default function PerformanceScreen() {
     return () => clearInterval(interval);
   }, [batchUpdates]);
 
-  const handleRefresh = useSinglePress(() => {
+  const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    await checkSystemHealth();
+    setIsRefreshing(false);
   }, 700);
+
+  const handleRecheckSystem = useSinglePress(async () => {
+    setIsCheckingSystem(true);
+    await checkSystemHealth();
+  }, 500);
 
   // Kịch bản 1: Mở gợi ý địa điểm cho buổi hẹn 19:00
   const handleScenario1 = useSinglePress(() => {
@@ -148,12 +215,99 @@ export default function PerformanceScreen() {
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>{t('fe2.dev_performance.socket_latency')}</Text>
-          <Text style={[styles.value, { color: colors.success }]}>~45ms</Text>
+          <Text
+            style={[
+              styles.value,
+              { color: latencyMs !== null ? colors.success : colors.placeholder },
+            ]}
+          >
+            {latencyMs !== null
+              ? `${latencyMs} ms`
+              : t('fe2.dev_performance.system_latency_unavailable')}
+          </Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>{t('fe2.dev_performance.memory_usage')}</Text>
           <Text style={styles.value}>42 MB</Text>
         </View>
+      </View>
+
+      {/* Backend Health & Readiness Card (GET /health & /health/ready) */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('fe2.dev_performance.system_health_title')}</Text>
+        {isCheckingSystem && !healthData && !healthError ? (
+          <View style={{ gap: 8 }}>
+            <SkeletonBox width="100%" height={18} />
+            <SkeletonBox width="100%" height={18} />
+            <SkeletonBox width="85%" height={18} />
+          </View>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {healthError && (
+              <InlineAlert
+                tone="danger"
+                title={t(`errors.${healthError.code}.title` as any)}
+                message={t(`errors.${healthError.code}.description` as any)}
+              />
+            )}
+            <View style={styles.row}>
+              <Text style={styles.label}>{t('fe2.dev_performance.system_api_label')}</Text>
+              <Text
+                style={[
+                  styles.value,
+                  { color: healthData?.status === 'ok' ? colors.success : colors.danger },
+                ]}
+              >
+                {healthData?.status === 'ok'
+                  ? t('fe2.dev_performance.system_status_up')
+                  : t('fe2.dev_performance.system_status_offline')}
+              </Text>
+            </View>
+            {(['postgres', 'redis', 'outboxWorker'] as const).map((dep) => {
+              const depState =
+                readinessData?.status === 'ready'
+                  ? readinessData.dependencies[dep]
+                  : readinessData?.status === 'not_ready'
+                    ? 'down'
+                    : 'offline';
+              const labelKey =
+                dep === 'postgres'
+                  ? 'fe2.dev_performance.system_postgres_label'
+                  : dep === 'redis'
+                    ? 'fe2.dev_performance.system_redis_label'
+                    : 'fe2.dev_performance.system_outbox_label';
+              const statusTextKey =
+                depState === 'up'
+                  ? 'fe2.dev_performance.system_status_up'
+                  : depState === 'down'
+                    ? 'fe2.dev_performance.system_status_down'
+                    : 'fe2.dev_performance.system_status_offline';
+              const statusColor =
+                depState === 'up'
+                  ? colors.success
+                  : depState === 'down'
+                    ? colors.warning
+                    : colors.danger;
+              return (
+                <View key={dep} style={styles.row}>
+                  <Text style={styles.label}>{t(labelKey)}</Text>
+                  <Text style={[styles.value, { color: statusColor }]}>{t(statusTextKey)}</Text>
+                </View>
+              );
+            })}
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+              ]}
+              onPress={handleRecheckSystem}
+            >
+              <Text style={[styles.buttonText, { color: colors.text }]}>
+                {t('fe2.dev_performance.system_recheck_btn')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Battery & Network Optimization Switches */}

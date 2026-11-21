@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,8 +29,18 @@ export default function AiExplanationScreen() {
   }>();
 
   const storeState = useRecommendationStore();
-  const { activeMeetupId, apiError, hasServerData, replayRunOnServer, loadRecommendationsForMeetup } =
-    storeState;
+  const {
+    runId,
+    activeMeetupId,
+    apiError,
+    hasServerData,
+    aiExplanationsByCandidateKey,
+    isAiExplanationLoading,
+    aiExplanationError,
+    replayRunOnServer,
+    loadRecommendationsForMeetup,
+    loadAiExplanationsForRun,
+  } = storeState;
   const { places } = useMemo(
     () => selectComputedRecommendations(storeState),
     [storeState]
@@ -41,7 +51,16 @@ export default function AiExplanationScreen() {
     [places, placeId]
   );
 
-  const isLoading = storeState.isApiLoading;
+  useEffect(() => {
+    if (!hasServerData || !activeMeetupId || !runId) return;
+    void loadAiExplanationsForRun(activeMeetupId, runId);
+  }, [hasServerData, activeMeetupId, runId, loadAiExplanationsForRun]);
+
+  const serverAiExplanation = place
+    ? aiExplanationsByCandidateKey[place.canonicalCandidateKey]
+    : undefined;
+  const isLoading =
+    storeState.isApiLoading || (isAiExplanationLoading && !serverAiExplanation);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [replayStatus, setReplayStatus] = useState<'idle' | 'ok' | 'error'>('idle');
 
@@ -50,7 +69,10 @@ export default function AiExplanationScreen() {
   const handleRefresh = useSinglePress(async () => {
     setIsRefreshing(true);
     if (hasServerData && activeMeetupId) {
-      const replay = await replayRunOnServer(activeMeetupId);
+      const [, replay] = await Promise.all([
+        loadAiExplanationsForRun(activeMeetupId, runId, true),
+        replayRunOnServer(activeMeetupId),
+      ]);
       setReplayStatus(replay?.replayConsistent ? 'ok' : 'error');
     } else if (activeMeetupId) {
       await loadRecommendationsForMeetup(activeMeetupId);
@@ -94,9 +116,30 @@ export default function AiExplanationScreen() {
   const maxEtaMin = Math.round(place.maxEtaSeconds / 60);
   const viewerEtaMin = Math.round(place.viewerFeature.etaSeconds / 60);
 
-  const aiSummaryText = place.explanation.aiSummaryKey
-    ? t(place.explanation.aiSummaryKey as any)
-    : t('fe2.ai_explanation.highlight_fair', { avg: avgEtaMin, max: maxEtaMin });
+  const aiSummaryText =
+    serverAiExplanation?.text ||
+    (place.explanation.aiSummaryKey
+      ? t(place.explanation.aiSummaryKey as any)
+      : t('fe2.ai_explanation.highlight_fair', { avg: avgEtaMin, max: maxEtaMin }));
+
+  const badgeConfig =
+    serverAiExplanation?.source === 'ai'
+      ? {
+          bg: colors.purpleLight,
+          fg: colors.purple,
+          label: t('fe2.ai_explanation.source_ai_badge'),
+        }
+      : serverAiExplanation?.source === 'rule_fallback'
+        ? {
+            bg: colors.surfaceAlt,
+            fg: colors.subtext,
+            label: t('fe2.ai_explanation.source_fallback_badge'),
+          }
+        : {
+            bg: colors.purpleLight,
+            fg: colors.purple,
+            label: t('fe2.ai_explanation.ai_badge'),
+          };
 
   const travelModeLabel =
     place.viewerFeature.travelMode === 'DRIVE'
@@ -148,10 +191,17 @@ export default function AiExplanationScreen() {
                   message={t('fe2.common.replay_failed_msg')}
                 />
               )}
+              {aiExplanationError && !serverAiExplanation && (
+                <InlineAlert
+                  tone="warning"
+                  title={t('fe2.ai_explanation.fetch_fallback_title')}
+                  message={t('fe2.ai_explanation.fetch_fallback_msg')}
+                />
+              )}
               <View style={{ gap: 8 }}>
-                <View style={[styles.aiBadge, { backgroundColor: colors.purpleLight }]}>
-                  <Text style={[styles.aiBadgeText, { color: colors.purple }]}>
-                    {t('fe2.ai_explanation.ai_badge')}
+                <View style={[styles.aiBadge, { backgroundColor: badgeConfig.bg }]}>
+                  <Text style={[styles.aiBadgeText, { color: badgeConfig.fg }]}>
+                    {badgeConfig.label}
                   </Text>
                 </View>
                 <Text style={styles.explanationText}>{aiSummaryText}</Text>
