@@ -1,14 +1,22 @@
 import { useCallback, useRef, useState } from 'react';
-import { RefreshControl, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Ban, Pencil } from 'lucide-react-native';
-import { Button, ConfirmDialog, InlineAlert, LoadingState, Screen, useToast } from '@/components/common';
+import { Ban, Mail, Pencil, XCircle } from 'lucide-react-native';
+import { Button, Card, ConfirmDialog, InlineAlert, LoadingState, Screen, useToast } from '@/components/common';
+import { InvitationResponseActions } from '@/components/meetup/InvitationResponseActions';
 import { MeetupErrorState } from '@/components/meetup/MeetupErrorState';
 import { MeetupFeatureLinks } from '@/components/meetup/MeetupFeatureLinks';
 import { MeetupInfoCard } from '@/components/meetup/MeetupInfoCard';
 import { MeetupMembersSection } from '@/components/meetup/MeetupMembersSection';
-import { canCancelMeetup, canEditMeetup, isMeetupActive, isMeetupOrganizer } from '@/constants/meetup';
+import {
+  canCancelMeetup,
+  canEditMeetup,
+  getMyMember,
+  isMeetupActive,
+  isMeetupOrganizer,
+  isPendingInvitation,
+} from '@/constants/meetup';
 import { routes, type MeetupRouteParams } from '@/constants/routes';
 import { useMeetupDetail } from '@/hooks/useMeetupDetail';
 import { useMeetupMembers } from '@/hooks/useMeetupMembers';
@@ -16,7 +24,7 @@ import { useMeetupRealtime } from '@/hooks/useMeetupRealtime';
 import { useTheme } from '@/hooks/useTheme';
 import { meetupService, toMeetupError } from '@/services/meetupService';
 import { useAuthStore } from '@/store/useAuthStore';
-import { spacing } from '@/theme';
+import { fontSize, fontWeight, spacing } from '@/theme';
 import type { MeetupDetail } from '@/types/meetup';
 import { formatMeetupDateTime, getMeetupErrorMessage } from '@/utils/meetup';
 
@@ -83,6 +91,10 @@ export default function MeetupDetailScreen() {
   const canEdit = canEditMeetup(meetup, myId);
   const canCancel = canCancelMeetup(meetup, myId);
   const active = isMeetupActive(meetup.status);
+  const myStatus = getMyMember(meetup, myId)?.status;
+  const invitedPending = isPendingInvitation(meetup, myId);
+  const organizerName = organizer?.name ?? t('meetup.member_unknown');
+  const showFeatures = active && (isOrganizer || myStatus === 'accepted');
 
   return (
     <Screen
@@ -117,11 +129,16 @@ export default function MeetupDetailScreen() {
     >
       <StatusBanner meetup={meetup} isOrganizer={isOrganizer} />
 
-      <MeetupInfoCard meetup={meetup} organizer={organizer ?? { id: meetup.organizerId, name: t('meetup.member_unknown') }} isOrganizerMe={isOrganizer} />
+      {invitedPending && <InvitationPanel meetup={meetup} organizerName={organizerName} />}
+      {!isOrganizer && myStatus === 'declined' && (
+        <InlineAlert tone="info" icon={XCircle} title={t('meetup.invitation.declined_title')} message={t('meetup.invitation.declined_message')} />
+      )}
+
+      <MeetupInfoCard meetup={meetup} organizer={organizer ?? { id: meetup.organizerId, name: organizerName }} isOrganizerMe={isOrganizer} />
 
       <MeetupMembersSection members={members} />
 
-      {active && <MeetupFeatureLinks meetupId={meetup.id} />}
+      {showFeatures && <MeetupFeatureLinks meetupId={meetup.id} />}
 
       <ConfirmDialog
         visible={confirmCancel}
@@ -134,6 +151,25 @@ export default function MeetupDetailScreen() {
         onConfirm={handleCancel}
       />
     </Screen>
+  );
+}
+
+function InvitationPanel({ meetup, organizerName }: { meetup: MeetupDetail; organizerName: string }) {
+  const { t } = useTranslation();
+  const { colors } = useTheme();
+  return (
+    <Card style={styles.invitation} testID="meetup-invitation-panel">
+      <View style={styles.invitationHeader}>
+        <Mail size={fontSize.lg} color={colors.primary} />
+        <Text style={[styles.invitationTitle, { color: colors.text }]} accessibilityRole="header">
+          {t('meetup.invitation.detail_title')}
+        </Text>
+      </View>
+      <Text style={{ color: colors.subtext, fontSize: fontSize.sm }}>
+        {t('meetup.invitation.detail_message', { name: organizerName })}
+      </Text>
+      <InvitationResponseActions meetup={meetup} size="md" />
+    </Card>
   );
 }
 
@@ -171,4 +207,7 @@ function StatusBanner({ meetup, isOrganizer }: { meetup: MeetupDetail; isOrganiz
 const styles = StyleSheet.create({
   footer: { flexDirection: 'row', gap: spacing.sm },
   flex: { flex: 1 },
+  invitation: { gap: spacing.sm },
+  invitationHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  invitationTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
 });

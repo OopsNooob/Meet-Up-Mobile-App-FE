@@ -64,7 +64,6 @@ let globalSocket: Socket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let currentStatus: SocketStatus = 'disconnected';
 const statusListeners = new Set<() => void>();
-const processedEventIds = new Set<string>();
 
 function notifyStatus(next: SocketStatus) {
   if (currentStatus === next) return;
@@ -139,6 +138,7 @@ function ensureSocketConnected() {
 export function useSocket() {
   const token = useAuthStore((s) => s.accessToken);
   const listenerMapRef = useRef<Map<string, (...args: unknown[]) => void>>(new Map());
+  const processedEventIdsRef = useRef<Set<string>>(new Set());
   const status = useSyncExternalStore(subscribeStatus, getStatusSnapshot, getStatusSnapshot);
 
   // Khởi tạo kết nối 1 lần duy nhất ở tầng singleton
@@ -168,11 +168,13 @@ export function useSocket() {
         (typeof maybeObj?.id === 'string' && maybeObj.id) ||
         null;
       if (eventId) {
-        if (processedEventIds.has(eventId)) return;
-        processedEventIds.add(eventId);
-        if (processedEventIds.size > 300) {
-          const oldest = processedEventIds.values().next().value;
-          if (oldest) processedEventIds.delete(oldest);
+        const processed = processedEventIdsRef.current;
+        const key = `${event}:${eventId}`;
+        if (processed.has(key)) return;
+        processed.add(key);
+        if (processed.size > 300) {
+          const oldest = processed.values().next().value;
+          if (oldest) processed.delete(oldest);
         }
       }
       handler(data);

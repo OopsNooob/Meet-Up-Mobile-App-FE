@@ -137,7 +137,14 @@
     "list": {
       "empty_description": "Create a meetup and invite friends to pick a place together.",
       "organizer_badge": "Yours",
-      "within": "within {{radius}}"
+      "within": "within {{radius}}",
+      "my_status": {
+        "invited": "Awaiting your reply",
+        "accepted": "You're going",
+        "declined": "You declined",
+        "left": "You left",
+        "removed": "You were removed"
+      }
     },
     "errors": {
       "meetup_not_found": "This meetup does not exist or was deleted.",
@@ -148,7 +155,31 @@
       "not_editable": "This meetup is finalized, cancelled or finished and cannot be changed.",
       "invalid_schedule": "The meetup time is invalid or in the past.",
       "invitee_not_friend": "Someone you invited is no longer your friend.",
-      "partial_saved": "Some changes were saved, the rest failed:"
+      "partial_saved": "Some changes were saved, the rest failed:",
+      "invitation_closed": "This meetup has changed (cancelled, finalized or past the response deadline), so you can no longer respond. The latest details have been reloaded."
+    },
+    "invitation": {
+      "accept": "Accept",
+      "reject": "Decline",
+      "accepted_toast": "You joined \"{{title}}\"",
+      "rejected_toast": "You declined \"{{title}}\"",
+      "from": "Organizer: {{name}}",
+      "member_count": "{{count}} members · {{accepted}} joined",
+      "empty_title": "No invitations",
+      "empty_description": "When friends invite you to a meetup, the invitation shows up here.",
+      "go_to_meetups": "View my meetups",
+      "button_with_count": "Invitations ({{count}})",
+      "detail_title": "You're invited",
+      "detail_message": "{{name}} invited you to this meetup. Accept to set your preferences, see suggestions and chat with the group.",
+      "declined_title": "You declined this invitation",
+      "declined_message": "You won't be joining this meetup.",
+      "blocked": {
+        "cancelled": "Meetup cancelled",
+        "selected": "Meetup finalized",
+        "finished": "Meetup finished",
+        "expired": "Response deadline passed",
+        "not_open": "Not open for responses yet"
+      }
     }
   },
   "fe2": {

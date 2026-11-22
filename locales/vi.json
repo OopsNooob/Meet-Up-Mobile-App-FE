@@ -137,7 +137,14 @@
     "list": {
       "empty_description": "Tạo meetup và mời bạn bè cùng chọn chỗ gặp.",
       "organizer_badge": "Bạn tạo",
-      "within": "trong {{radius}}"
+      "within": "trong {{radius}}",
+      "my_status": {
+        "invited": "Chờ bạn phản hồi",
+        "accepted": "Bạn đã tham gia",
+        "declined": "Bạn đã từ chối",
+        "left": "Bạn đã rời",
+        "removed": "Bạn đã bị xóa"
+      }
     },
     "errors": {
       "meetup_not_found": "Meetup không tồn tại hoặc đã bị xóa.",
@@ -148,7 +155,31 @@
       "not_editable": "Meetup đã chốt, đã hủy hoặc đã kết thúc nên không thể thay đổi.",
       "invalid_schedule": "Thời gian gặp không hợp lệ hoặc đã qua.",
       "invitee_not_friend": "Có người được mời không còn là bạn bè của bạn.",
-      "partial_saved": "Một số thay đổi đã được lưu, phần còn lại chưa lưu được:"
+      "partial_saved": "Một số thay đổi đã được lưu, phần còn lại chưa lưu được:",
+      "invitation_closed": "Meetup đã đổi trạng thái (đã hủy, đã chốt hoặc hết hạn phản hồi) nên không thể phản hồi nữa. Đã tải lại thông tin mới nhất."
+    },
+    "invitation": {
+      "accept": "Chấp nhận",
+      "reject": "Từ chối",
+      "accepted_toast": "Đã tham gia \"{{title}}\"",
+      "rejected_toast": "Đã từ chối lời mời \"{{title}}\"",
+      "from": "Người tạo: {{name}}",
+      "member_count": "{{count}} thành viên · {{accepted}} đã tham gia",
+      "empty_title": "Không có lời mời nào",
+      "empty_description": "Khi bạn bè mời bạn tham gia meetup, lời mời sẽ hiện ở đây.",
+      "go_to_meetups": "Xem meetup của tôi",
+      "button_with_count": "Lời mời ({{count}})",
+      "detail_title": "Bạn được mời tham gia",
+      "detail_message": "{{name}} mời bạn tham gia meetup này. Chấp nhận để chọn sở thích, xem gợi ý và trò chuyện cùng nhóm.",
+      "declined_title": "Bạn đã từ chối lời mời",
+      "declined_message": "Bạn sẽ không tham gia meetup này.",
+      "blocked": {
+        "cancelled": "Meetup đã hủy",
+        "selected": "Meetup đã chốt",
+        "finished": "Meetup đã kết thúc",
+        "expired": "Đã hết hạn phản hồi",
+        "not_open": "Chưa mở nhận phản hồi"
+      }
     }
   },
   "fe2": {
