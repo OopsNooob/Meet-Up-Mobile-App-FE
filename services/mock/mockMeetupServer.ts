@@ -67,14 +67,19 @@ let rows: Row[] = [
   ]),
   seedMeetup('m-demo-2', 'u-lan', 'Meetup của Lan', 'choosing', 72, [['u1', 'accepted']]),
   seedMeetup('m-demo-3', 'u1', 'Đi xem phim (đã hủy)', 'cancelled', 24, [['u-lan', 'invited']]),
+  seedMeetup('m-inv-1', 'u-lan', 'Ăn tối thứ Sáu', 'inviting', 30, [['u1', 'invited'], ['u-minh', 'accepted']]),
+  seedMeetup('m-inv-2', 'u-lan', 'Chạy bộ sáng (đã chốt)', 'selected', 50, [['u1', 'invited']]),
+  seedMeetup('m-inv-3', 'u-lan', 'Bowling #race', 'choosing', 40, [['u1', 'invited']]),
 ];
 
 const EDITABLE: MeetupStatus[] = ['draft', 'inviting', 'choosing'];
 const CANCELLABLE: MeetupStatus[] = ['draft', 'inviting', 'choosing', 'selected'];
+const RESPONDABLE: MeetupStatus[] = ['inviting', 'choosing'];
 
 type Fail = (status: number, code: string) => unknown;
 
-export const isMockMeetupPath = (path: string) => path === '/meetups' || /^\/meetups\/[^/]+(\/cancel|\/participants(\/[^/]+)?)?$/.test(path);
+export const isMockMeetupPath = (path: string) =>
+  path === '/meetups' || /^\/meetups\/[^/]+(\/cancel|\/participants(\/[^/]+)?|\/invitations(\/(accept|reject))?)?$/.test(path);
 
 const toSummary = ({ participants: _p, ...row }: Row) => row;
 
@@ -143,6 +148,24 @@ export function handleMeetupRequest(
 
   if (!sub && method === 'get') return { status: 200, data: row satisfies MeetupDetailResponse };
 
+  if (sub === 'invitations' && (targetUserId === 'accept' || targetUserId === 'reject') && method === 'post') {
+    const mine = row.participants.find((p) => p.userId === me.id);
+    if (!mine || row.organizerId === me.id) throw fail(403, 'MEETUP_FORBIDDEN');
+    if (row.title.includes('#race')) {
+      row.status = 'selected';
+      touch(row);
+      throw fail(409, 'MEETUP_FINALIZED');
+    }
+    if (row.status === 'cancelled') throw fail(409, 'MEETUP_CANCELLED');
+    if (!RESPONDABLE.includes(row.status)) throw fail(409, 'MEETUP_FINALIZED');
+    if (new Date(row.invitationDeadlineAt).getTime() <= Date.now()) throw fail(409, 'INVITATION_DEADLINE_PASSED');
+    if (mine.status !== 'invited') throw fail(409, 'INVITATION_NOT_PENDING');
+    const now = new Date().toISOString();
+    Object.assign(mine, targetUserId === 'accept' ? { status: 'accepted', respondedAt: now, joinedAt: now } : { status: 'declined', respondedAt: now });
+    touch(row);
+    return { status: 200, data: row satisfies MeetupDetailResponse };
+  }
+
   if (row.organizerId !== me.id) throw fail(403, 'NOT_MEETUP_ORGANIZER');
 
   if (sub === 'cancel' && method === 'post') {
@@ -163,7 +186,7 @@ export function handleMeetupRequest(
     return { status: 200, data: row };
   }
 
-  if (sub === 'participants' && !targetUserId && method === 'post') {
+  if ((sub === 'invitations' || sub === 'participants') && !targetUserId && method === 'post') {
     const req = body as unknown as InviteParticipantsRequest;
     for (const userId of new Set(req.inviteeIds ?? [])) {
       if (userId === me.id) continue;

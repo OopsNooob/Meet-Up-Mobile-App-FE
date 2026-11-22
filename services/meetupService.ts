@@ -1,5 +1,10 @@
 import { apiClient, toApiError, type ApiError } from '@/services/apiClient';
-import { computeInvitationDeadline, DEFAULT_MEETUP_PLACE_TYPES, isActiveMember } from '@/constants/meetup';
+import {
+  computeInvitationDeadline,
+  DEFAULT_MEETUP_PLACE_TYPES,
+  isActiveMember,
+  isMeetupActive,
+} from '@/constants/meetup';
 import type {
   CreateMeetupRequest,
   InviteParticipantsRequest,
@@ -9,13 +14,23 @@ import type {
   MeetupSummaryResponse,
   UpdateMeetupRequest,
 } from '@/types/api';
-import type { Meetup, MeetupDetail, MeetupError, MeetupErrorCode, MeetupFormValues, MeetupMember } from '@/types/meetup';
+import type {
+  InvitationResponse,
+  Meetup,
+  MeetupDetail,
+  MeetupError,
+  MeetupErrorCode,
+  MeetupFormValues,
+  MeetupMember,
+} from '@/types/meetup';
 
 export const MEETUP_PATHS = {
   list: '/meetups',
   meetup: (meetupId: string) => `/meetups/${encodeURIComponent(meetupId)}`,
   cancel: (meetupId: string) => `/meetups/${encodeURIComponent(meetupId)}/cancel`,
-  participants: (meetupId: string) => `/meetups/${encodeURIComponent(meetupId)}/participants`,
+  invitations: (meetupId: string) => `/meetups/${encodeURIComponent(meetupId)}/invitations`,
+  respondInvitation: (meetupId: string, response: InvitationResponse) =>
+    `/meetups/${encodeURIComponent(meetupId)}/invitations/${response}`,
   participant: (meetupId: string, userId: string) =>
     `/meetups/${encodeURIComponent(meetupId)}/participants/${encodeURIComponent(userId)}`,
 } as const;
@@ -24,6 +39,9 @@ export const MEETUP_LIST_PAGE_SIZE = 50;
 
 const MEETUP_SERVER_CODES: Record<string, MeetupErrorCode> = {
   MEETUP_NOT_FOUND: 'meetup_not_found',
+  MEETUP_FORBIDDEN: 'not_organizer',
+  NOT_MEETUP_MEMBER: 'not_member',
+  MEETUP_INVITEE_UNAVAILABLE: 'invitee_not_friend',
   NOT_MEETUP_ORGANIZER: 'not_organizer',
   MEETUP_NOT_EDITABLE: 'not_editable',
   MEETUP_CANCELLED: 'not_editable',
@@ -53,6 +71,22 @@ export function toMeetupError(err: unknown): MeetupError {
     (error.status ? STATUS_FALLBACK[error.status] : undefined);
   return { ...error, ...(meetupCode ? { meetupCode } : {}), ...(raw?.partial ? { partial: true } : {}) };
 }
+
+export function toInvitationError(err: unknown): MeetupError {
+  const error = toMeetupError(err);
+  if (error.meetupCode === 'meetup_not_found') return error;
+  if (error.status === 409 || error.meetupCode === 'not_editable') return { ...error, meetupCode: 'invitation_closed' };
+  if (error.status === 403 || error.code === 'forbidden' || error.meetupCode === 'not_organizer') {
+    return { ...error, meetupCode: 'not_member' };
+  }
+  return error;
+}
+
+export const isMeetupGoneError = (error: MeetupError) =>
+  error.meetupCode === 'meetup_not_found' ||
+  error.meetupCode === 'not_member' ||
+  error.status === 404 ||
+  error.status === 403;
 
 async function call<T>(request: () => Promise<T>): Promise<T> {
   try {
@@ -87,7 +121,7 @@ const toMember = (dto: MeetupParticipantResponse): MeetupMember => ({
   respondedAt: dto.respondedAt,
 });
 
-const toDetail = (dto: MeetupDetailResponse): MeetupDetail => ({
+export const toDetail = (dto: MeetupDetailResponse): MeetupDetail => ({
   ...toMeetup(dto),
   members: (dto.participants ?? []).map(toMember),
 });
@@ -155,7 +189,7 @@ export const meetupService = {
     if (Object.keys(patch).length > 0) steps.push(() => apiClient.patch(MEETUP_PATHS.meetup(original.id), patch));
     if (added.length > 0) {
       const body: InviteParticipantsRequest = { inviteeIds: added };
-      steps.push(() => apiClient.post(MEETUP_PATHS.participants(original.id), body));
+      steps.push(() => apiClient.post(MEETUP_PATHS.invitations(original.id), body));
     }
     for (const userId of removed) steps.push(() => apiClient.delete(MEETUP_PATHS.participant(original.id, userId)));
 
@@ -175,5 +209,31 @@ export const meetupService = {
     return call(async () => {
       await apiClient.post(MEETUP_PATHS.cancel(meetupId));
     });
+  },
+
+  async listInvitedMeetupDetails(myId: string): Promise<MeetupDetail[]> {
+    const summaries = await meetupService.listMine();
+    const candidates = summaries.filter((m) => m.organizerId !== myId && isMeetupActive(m.status));
+    const results = await Promise.allSettled(candidates.map((m) => meetupService.get(m.id)));
+
+    const details: MeetupDetail[] = [];
+    let firstError: MeetupError | null = null;
+    for (const result of results) {
+      if (result.status === 'fulfilled') details.push(result.value);
+      else if (!isMeetupGoneError(result.reason as MeetupError)) firstError ??= result.reason as MeetupError;
+    }
+    if (firstError && details.length === 0) throw firstError;
+    return details;
+  },
+
+  async respondInvitation(meetupId: string, response: InvitationResponse): Promise<MeetupDetail | null> {
+    try {
+      const { data } = await apiClient.post<MeetupDetailResponse | undefined>(
+        MEETUP_PATHS.respondInvitation(meetupId, response),
+      );
+      return data?.participants ? toDetail(data) : null;
+    } catch (err) {
+      throw toInvitationError(err);
+    }
   },
 };

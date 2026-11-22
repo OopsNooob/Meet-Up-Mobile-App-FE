@@ -1,4 +1,4 @@
-import type { Meetup, MeetupMember, MeetupStatus } from '@/types/meetup';
+import type { InvitationBlockReason, Meetup, MeetupDetail, MeetupMember, MeetupStatus } from '@/types/meetup';
 
 export const DEFAULT_MEETUP_PLACE_TYPES = [
   'cafe',
@@ -50,3 +50,33 @@ export const isMeetupActive = (status: MeetupStatus) => status !== 'cancelled' &
 
 export const isActiveMember = (member: Pick<MeetupMember, 'status'>) =>
   member.status === 'invited' || member.status === 'accepted';
+
+export const RESPONDABLE_MEETUP_STATUSES: readonly MeetupStatus[] = ['inviting', 'choosing'];
+
+export const getMyMember = (meetup: Pick<MeetupDetail, 'members'>, userId: string | null | undefined) =>
+  userId ? meetup.members.find((m) => m.userId === userId) : undefined;
+
+export const isPendingInvitation = (meetup: MeetupDetail, userId: string | null | undefined) =>
+  !!userId && meetup.organizerId !== userId && getMyMember(meetup, userId)?.status === 'invited';
+
+export function getInvitationBlockReason(
+  meetup: Pick<Meetup, 'status' | 'invitationDeadlineAt'>,
+  now: number = Date.now(),
+): InvitationBlockReason | null {
+  switch (meetup.status) {
+    case 'cancelled':
+      return 'cancelled';
+    case 'selected':
+      return 'selected';
+    case 'finished':
+      return 'finished';
+    case 'draft':
+      return 'not_open';
+  }
+  const deadline = new Date(meetup.invitationDeadlineAt).getTime();
+  if (Number.isFinite(deadline) && deadline <= now) return 'expired';
+  return RESPONDABLE_MEETUP_STATUSES.includes(meetup.status) ? null : 'not_open';
+}
+
+export const canRespondToInvitation = (meetup: MeetupDetail, userId: string | null | undefined, now?: number) =>
+  isPendingInvitation(meetup, userId) && getInvitationBlockReason(meetup, now) === null;

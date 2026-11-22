@@ -40,6 +40,10 @@ export interface MeetupMemberView {
   isOrganizer: boolean;
 }
 
+export type InvitationResponse = 'accept' | 'reject';
+
+export type InvitationBlockReason = 'cancelled' | 'selected' | 'finished' | 'expired' | 'not_open';
+
 export interface MeetupFormValues {
   title: string;
   scheduledAt: Date;
@@ -54,6 +58,8 @@ export const MEETUP_ERROR_CODES = [
   'not_editable',
   'invalid_schedule',
   'invitee_not_friend',
+  'not_member',
+  'invitation_closed',
 ] as const;
 export type MeetupErrorCode = (typeof MEETUP_ERROR_CODES)[number];
 

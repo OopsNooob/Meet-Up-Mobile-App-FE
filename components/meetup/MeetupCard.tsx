@@ -1,19 +1,28 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { CalendarClock, Crown, MapPin } from 'lucide-react-native';
+import { CalendarClock, CheckCircle2, Crown, LogOut, Mail, MapPin, UserMinus, XCircle, type LucideIcon } from 'lucide-react-native';
 import { Badge, Card, StatusLabel } from '@/components/common';
 import { useTheme } from '@/hooks/useTheme';
-import { fontSize, fontWeight, iconSize, spacing } from '@/theme';
-import type { Meetup } from '@/types/meetup';
+import { fontSize, fontWeight, iconSize, spacing, type Tone } from '@/theme';
+import type { Meetup, MeetupMemberStatus } from '@/types/meetup';
 import { formatMeetupDateTime, formatRadius } from '@/utils/meetup';
+
+const MY_STATUS_STYLE: Record<MeetupMemberStatus, { tone: Tone; icon: LucideIcon }> = {
+  invited: { tone: 'warning', icon: Mail },
+  accepted: { tone: 'success', icon: CheckCircle2 },
+  declined: { tone: 'danger', icon: XCircle },
+  left: { tone: 'neutral', icon: LogOut },
+  removed: { tone: 'neutral', icon: UserMinus },
+};
 
 export interface MeetupCardProps {
   meetup: Meetup;
   isOrganizer: boolean;
+  myStatus?: MeetupMemberStatus;
   onPress: () => void;
 }
 
-export function MeetupCard({ meetup, isOrganizer, onPress }: MeetupCardProps) {
+export function MeetupCard({ meetup, isOrganizer, myStatus, onPress }: MeetupCardProps) {
   const { t, i18n } = useTranslation();
   const { colors } = useTheme();
   const locale = i18n.language;
@@ -29,6 +38,9 @@ export function MeetupCard({ meetup, isOrganizer, onPress }: MeetupCardProps) {
       <View style={styles.badges}>
         <StatusLabel kind={`meetup_${meetup.status}`} />
         {isOrganizer && <Badge label={t('meetup.list.organizer_badge')} tone="purple" icon={Crown} />}
+        {!isOrganizer && myStatus && (
+          <Badge label={t(`meetup.list.my_status.${myStatus}`)} {...MY_STATUS_STYLE[myStatus]} />
+        )}
       </View>
       <View style={styles.meta}>
         <CalendarClock size={iconSize.sm} color={colors.subtext} />

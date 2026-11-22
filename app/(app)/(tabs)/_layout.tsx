@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Calendar, Map, User, Users } from 'lucide-react-native';
 import { LanguageToggle } from '@/components/common';
 import { useFriendRequestsSync, useIncomingRequestCount } from '@/hooks/useFriends';
+import { useMeetupInvitationCount, useMeetupInvitationsSync } from '@/hooks/useMeetupInvitations';
 import { useTheme } from '@/hooks/useTheme';
 
 /** Badge quá dài làm vỡ tab bar */
 const MAX_BADGE_COUNT = 99;
+const toBadge = (count: number) => (count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : count || undefined);
 
 export default function TabLayout() {
   const { t } = useTranslation();
@@ -14,7 +16,10 @@ export default function TabLayout() {
   // FE-03: badge số lời mời kết bạn đang chờ trên tab Bạn bè
   useFriendRequestsSync();
   const incomingCount = useIncomingRequestCount();
-  const friendsBadge = incomingCount > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : incomingCount || undefined;
+  const friendsBadge = toBadge(incomingCount);
+  useMeetupInvitationsSync();
+  const meetupsBadge = toBadge(useMeetupInvitationCount());
+  const badgeStyle = { backgroundColor: colors.danger, color: colors.onPrimary };
 
   return (
     <Tabs
@@ -34,7 +39,12 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="meetups"
-        options={{ title: t('tabs.meetups'), tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} /> }}
+        options={{
+          title: t('tabs.meetups'),
+          tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
+          tabBarBadge: meetupsBadge,
+          tabBarBadgeStyle: badgeStyle,
+        }}
       />
       <Tabs.Screen
         name="friends"
@@ -42,7 +52,7 @@ export default function TabLayout() {
           title: t('tabs.friends'),
           tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
           tabBarBadge: friendsBadge,
-          tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.onPrimary },
+          tabBarBadgeStyle: badgeStyle,
         }}
       />
       <Tabs.Screen
