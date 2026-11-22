@@ -283,6 +283,7 @@ export interface MeetupParticipantResponse {
   respondedAt: ISODateTime | null;
   joinedAt: ISODateTime | null;
   leftAt: ISODateTime | null;
+  budgetVnd?: number | null;
 }
 
 export interface MeetupSummaryResponse {
@@ -336,7 +337,36 @@ export interface MeetupPreferenceInput {
   level: PreferenceLevel;
 }
 
-export interface SetMeetupPreferencesRequest { preferences: MeetupPreferenceInput[] }
+export interface SetMeetupPreferencesRequest {
+  preferences: MeetupPreferenceInput[];
+  budgetVnd?: number | null;
+  aiSuggestionId?: UUID;
+}
+
+export interface SuggestMeetupPreferencesRequest {
+  message?: string;
+  conversation?: { role: 'user' | 'assistant'; text: string }[];
+  audioBase64?: string;
+  audioMimeType?:
+    | 'audio/wav'
+    | 'audio/mp3'
+    | 'audio/mpeg'
+    | 'audio/ogg'
+    | 'audio/webm'
+    | 'audio/flac'
+    | 'audio/aac';
+}
+
+export interface SuggestMeetupPreferencesResponse {
+  mode: 'clarification' | 'proposal' | 'manual_fallback';
+  suggestionId?: UUID;
+  replyText: string;
+  readyToConfirm: boolean;
+  preferences: MeetupPreferenceInput[];
+  budgetVnd: number | null;
+  saved: false;
+  availableTags?: { activityTagId: number; tagCode: string; displayName: string }[];
+}
 
 export interface MeetupPreferenceTagResponse extends UserPreferenceTagResponse {
   source: 'meetup_input' | 'profile_fallback';
@@ -347,6 +377,7 @@ export interface MeetupMemberPreferenceResponse {
   meetupId: UUID;
   participantId: UUID;
   userId: UUID;
+  budgetVnd: number | null;
   hasExplicitMeetupPreference: boolean;
   tags: MeetupPreferenceTagResponse[];
 }
@@ -356,12 +387,15 @@ export interface MeetupPreferenceSummaryResponse {
   totalParticipants: number;
   submittedCount: number;
   fallbackCount: number;
-  participants: Array<{
-    participantId: UUID; userId: UUID; status: ParticipantStatus;
+  participants: {
+    participantId: UUID;
+    userId: UUID;
+    budgetVnd: number | null;
+    status: ParticipantStatus;
     hasExplicitMeetupPreference: boolean;
     source: 'meetup_input' | 'profile_fallback';
     tags: MeetupPreferenceTagResponse[];
-  }>;
+  }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -411,20 +445,20 @@ export interface CandidateSearchResponse {
   meetupId: UUID;
   placeType: string;
   searchedAround: { latitude: number; longitude: number };
-  candidates: Array<{
+  candidates: {
     providerPlaceId: string; name: string; categories: string[];
     latitude: number; longitude: number; formattedAddress?: string;
     rating?: number; openingHours?: { openNow?: boolean };
-  }>;
+  }[];
 }
 
 export interface RecommendationExplanationResponse {
   summaryCode: string;
-  facts: Array<{
+  facts: {
     key:string; value:string|number;
     unit?:'SECOND'|'METER'|'UTILITY_0_1'|'PROBABILITY_0_1'|'COUNT';
     source:'ROUTES'|'PLACES'|'WEATHER'|'ENGINE';
-  }>;
+  }[];
   warnings: string[];
 }
 
@@ -450,7 +484,7 @@ export interface RecommendationResultResponse {
     longitude?: number;
     categories?: string[];
   };
-  memberEtas: Array<{ participantId: UUID; etaSeconds: number }>;
+  memberEtas: { participantId: UUID; etaSeconds: number }[];
   viewerFeature: null | {
     participantId: UUID;
     matchedTags: unknown[];
@@ -505,6 +539,22 @@ export interface ReplayRecommendationRunResponse {
   fullRankFingerprint:string; replayConsistent:true; providerCalls:0;
 }
 
+/** GET /meetups/:meetupId/recommendation-runs/:runId/ai-explanations */
+export interface AiExplanationItem {
+  rank: number;
+  canonicalCandidateKey: string;
+  explanation: {
+    text: string;
+    factKeys: string[];
+    source: 'ai' | 'rule_fallback';
+  };
+}
+
+export interface AiExplanationListResponse {
+  runId: UUID;
+  items: AiExplanationItem[];
+}
+
 export interface CastMeetupVoteRequest { recommendationPlaceId: UUID }
 export interface CastMeetupVoteResponse {
   meetupId:UUID;runId:UUID;recommendationPlaceId:UUID;
@@ -547,7 +597,7 @@ export interface ReactNativeUploadFile {
 export interface SendChatMessageRequest {
   clientMessageId: UUID;
   text?: string;
-  files?: Array<File | ReactNativeUploadFile>;
+  files?: (File | ReactNativeUploadFile)[];
 }
 
 export interface ChatAttachmentResponse {
@@ -601,10 +651,29 @@ export interface RealtimeHandshakeAuth { token:string }
 export interface PresenceHeartbeatAck { ok:true }
 export interface MeetupJoinMessage { meetupId:UUID }
 export interface MeetupJoinAck { meetupId:UUID;joined:true }
-export interface LocationUpdateMessage extends PublishLocationRequest {}
+export type LocationUpdateMessage = PublishLocationRequest;
 export interface LocationUpdateAck { accepted:true }
 export interface LocationUpdatedPayload {
   ownerId:UUID;meetupId:UUID;location:ProjectedLocationResponse;
+}
+/** GET /friends/live-locations; location is already projected for the viewer. */
+export interface FriendLiveLocationItemResponse {
+  ownerId: UUID;
+  location: ProjectedLocationResponse;
+}
+/** GET /friends/live-locations */
+export interface FriendLiveLocationsResponse {
+  items: FriendLiveLocationItemResponse[];
+}
+/** Socket.IO server → client; emitted only to an authorized user room. */
+export interface FriendLocationUpdatedPayload {
+  ownerId: UUID;
+  location: ProjectedLocationResponse;
+}
+/** Socket.IO server → client; client removes the owner's marker. */
+export interface FriendLocationUnavailablePayload {
+  ownerId: UUID;
+  reason: 'privacy_revoked' | 'friendship_removed' | 'blocked' | 'expired';
 }
 export interface RealtimeError { code:'UNAUTHORIZED'|'FORBIDDEN'|'INVALID_EVENT_PAYLOAD' }
 

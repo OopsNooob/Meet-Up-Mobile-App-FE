@@ -8,9 +8,10 @@ import {
   ScrollView,
   RefreshControl,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/useTheme';
+import { useFriends } from '@/hooks/useFriends';
 import { useSocket } from '@/hooks/useSocket';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { useSinglePress } from '@/hooks/useSinglePress';
@@ -80,6 +81,8 @@ export default function NearbyScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { friendId: detectedFriendId } = useLocalSearchParams<{ friendId?: string }>();
+  const { friends: loadedFriends } = useFriends();
 
   const { settings, apiError, fetchPrivacySettings, savePrivacySettingsToServer } =
     usePrivacyStore();
@@ -91,6 +94,17 @@ export default function NearbyScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [disableDialogVisible, setDisableDialogVisible] = useState(false);
+
+  const detectedFriend = useMemo<NearbyFriendItem | null>(() => {
+    if (!detectedFriendId) return null;
+    const matched = loadedFriends.find((item) => item.user.id === detectedFriendId);
+    return {
+      id: detectedFriendId,
+      name: matched?.user.name ?? `#${detectedFriendId.slice(0, 6)}`,
+      avatarUrl: matched?.user.avatarUrl,
+      approxDistance: t('fe2.nearby.approx_nearby_label'),
+    };
+  }, [detectedFriendId, loadedFriends, t]);
 
   useEffect(() => {
     let active = true;
@@ -120,6 +134,10 @@ export default function NearbyScreen() {
 
   const handleSelectRadius = useSinglePress((r: RadiusOption) => {
     setRadius(r);
+  }, 300);
+
+  const handleSelectNearbyState = useSinglePress((st: NearbyState) => {
+    setNearbyState(st);
   }, 300);
 
   const handleCreateMeetup = useSinglePress(() => router.push(routes.meetupCreate), 600);
@@ -235,7 +253,7 @@ export default function NearbyScreen() {
                           borderColor: colors.purple,
                         },
                       ]}
-                      onPress={() => setNearbyState(st)}
+                      onPress={() => handleSelectNearbyState(st)}
                     >
                       <Text
                         style={[
@@ -286,6 +304,11 @@ export default function NearbyScreen() {
               <Text style={[styles.label, { color: colors.success }]}>
                 {t('fe2.nearby.detected_title')}
               </Text>
+              {detectedFriend && (
+                <Text style={[styles.sublabel, { color: colors.text }]}>
+                  {t('fe2.nearby.detected_friend_hint', { name: detectedFriend.name })}
+                </Text>
+              )}
               <TouchableOpacity
                 style={[styles.createBtn, { backgroundColor: colors.success }]}
                 onPress={handleOpenDetectedModal}
@@ -326,7 +349,7 @@ export default function NearbyScreen() {
       <NearbyDetectedModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        friends={MOCK_NEARBY_FRIENDS}
+        friends={detectedFriend ? [detectedFriend] : MOCK_NEARBY_FRIENDS}
         onInviteMeetup={() => {
           setModalVisible(false);
           handleCreateMeetup();

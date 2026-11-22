@@ -12,13 +12,49 @@ import { useLocation } from '@/hooks/useLocation';
 import { FriendMarker, Friend } from '@/components/map/FriendMarker';
 import { FriendInfoModal } from '@/components/map/FriendInfoModal';
 import { InlineAlert } from '@/components/common/InlineAlert';
+import { SkeletonBox } from '@/components/common/Skeleton';
 import { useSocket } from '@/hooks/useSocket';
 import { usePrivacyStore } from '@/store/usePrivacyStore';
 import { locationService } from '@/services/locationService';
 import { toApiError } from '@/services/apiClient';
 import type { AppError } from '@/types/async';
+import type {
+  FriendLocationUnavailablePayload,
+  FriendLocationUpdatedPayload,
+  ProjectedLocationResponse,
+} from '@/types/api';
 import { routes } from '@/constants/routes';
 import type { LocationUpdatedPayload } from '@/hooks/useSocket';
+
+const FRIEND_LOCATION_TTL_MS = 300_000;
+
+function mapProjectedToFriend(
+  ownerId: string,
+  loc: ProjectedLocationResponse,
+  metaName?: string
+): Friend {
+  const updatedAt = new Date(loc.recordedAt);
+  return {
+    userId: ownerId,
+    name: metaName ?? `#${ownerId.slice(0, 6)}`,
+    lat: loc.latitude,
+    lng: loc.longitude,
+    accuracy: loc.accuracy,
+    updatedAt,
+    isStale: Date.now() - updatedAt.getTime() > FRIEND_LOCATION_TTL_MS,
+    precision: loc.isApproximate ? 'approximate' : 'precise',
+  };
+}
+
+async function fetchActiveLiveLocations(): Promise<Friend[]> {
+  const live = await locationService.listFriendLiveLocations();
+  const nowMs = Date.now();
+  return live.items
+    .filter(
+      (item) => nowMs - new Date(item.location.recordedAt).getTime() <= FRIEND_LOCATION_TTL_MS
+    )
+    .map((item) => mapProjectedToFriend(item.ownerId, item.location));
+}
 
 export default function FriendMapScreen() {
   const { t } = useTranslation();
@@ -28,72 +64,140 @@ export default function FriendMapScreen() {
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [locationError, setLocationError] = useState<AppError | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [hasLoadedLiveLocations, setHasLoadedLiveLocations] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const { status: socketStatus, on, off } = useSocket();
   const { settings, fetchPrivacySettings, isEffectiveSharingActive } = usePrivacyStore();
   const { state: friendsState, friends: friendList, refresh: refreshFriends } = useFriends();
-  const { syncError: publishError, clearSyncError } = useLocation();
+  const {
+    syncError: publishError,
+    clearSyncError,
+    publishSingleSample,
+    startSharing,
+    stopSharing,
+  } = useLocation();
+  const isSharingEnabled = isEffectiveSharingActive();
+
+  const friendMetaById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of friendList) {
+      map.set(item.user.id, item.user.name);
+    }
+    return map;
+  }, [friendList]);
+
+  const displayedFriends = useMemo(
+    () =>
+      friends.map((friend) => ({
+        ...friend,
+        name: friendMetaById.get(friend.userId) ?? friend.name,
+      })),
+    [friends, friendMetaById]
+  );
+
+  const activeSelectedFriend = useMemo(() => {
+    if (!selectedFriend) return null;
+    return displayedFriends.find((f) => f.userId === selectedFriend.userId) ?? selectedFriend;
+  }, [displayedFriends, selectedFriend]);
+
+  const isSelectedFriendVisible =
+    modalVisible &&
+    Boolean(
+      activeSelectedFriend &&
+        displayedFriends.some((f) => f.userId === activeSelectedFriend.userId)
+    );
 
   useEffect(() => {
     void fetchPrivacySettings();
   }, [fetchPrivacySettings]);
 
-  const loadFriendLocations = useCallback(async () => {
-    const results = await Promise.allSettled(
-      friendList.map(async (item) => {
-        const friendId = item.user.id;
-        const projected = await locationService.getProjectedLocation({
-          ownerId: friendId,
-          scope: 'friends',
-        });
-        if (!projected) return null;
-        const updatedAt = new Date(projected.recordedAt);
-        const mapped: Friend = {
-          userId: friendId,
-          name: item.user.name,
-          lat: projected.latitude,
-          lng: projected.longitude,
-          accuracy: projected.accuracy,
-          updatedAt,
-          isStale: Date.now() - updatedAt.getTime() > 5 * 60 * 1000,
-          precision: projected.isApproximate ? 'approximate' : 'precise',
-        };
-        return mapped;
-      })
-    );
-
-    const visible: Friend[] = [];
-    let networkErr: AppError | null = null;
-    for (const res of results) {
-      if (res.status === 'fulfilled' && res.value) {
-        visible.push(res.value);
-      } else if (res.status === 'rejected') {
-        const err = toApiError(res.reason);
-        if (err.code !== 'forbidden' && err.code !== 'not_found') {
-          networkErr = err;
-        }
-      }
-    }
-
-    setFriends(visible);
-    setLocationError(visible.length === 0 ? networkErr : null);
-  }, [friendList]);
-
   useEffect(() => {
-    if (friendsState.status !== 'success') return;
+    if (!isSharingEnabled) {
+      stopSharing();
+      return;
+    }
     let cancelled = false;
-    const syncLocations = async () => {
+    const begin = async () => {
       if (cancelled) return;
-      await loadFriendLocations();
+      await startSharing();
     };
-    void syncLocations();
+    void begin();
     return () => {
       cancelled = true;
+      stopSharing();
     };
-  }, [friendsState.status, loadFriendLocations]);
+  }, [isSharingEnabled, startSharing, stopSharing]);
+
+  const loadFriendLocations = useCallback(async () => {
+    try {
+      const visible = await fetchActiveLiveLocations();
+      setFriends(visible);
+      setLocationError(null);
+      setHasLoadedLiveLocations(true);
+    } catch (err) {
+      setLocationError(toApiError(err));
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    let active = true;
+    void socketStatus;
+    fetchActiveLiveLocations()
+      .then((visible) => {
+        if (!active) return;
+        setFriends(visible);
+        setLocationError(null);
+        setHasLoadedLiveLocations(true);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setLocationError(toApiError(err));
+      })
+      .finally(() => {
+        if (active) setIsInitialLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [socketStatus]);
+
+  useEffect(() => {
+    const expiryTimer = setInterval(() => {
+      const nowMs = Date.now();
+      setFriends((prev) => {
+        const active = prev.filter(
+          (f) => nowMs - f.updatedAt.getTime() <= FRIEND_LOCATION_TTL_MS
+        );
+        return active.length === prev.length ? prev : active;
+      });
+    }, 30_000);
+    return () => clearInterval(expiryTimer);
+  }, []);
+
+  useEffect(() => {
+    const upsertProjectedLocation = (ownerId: string, loc: ProjectedLocationResponse) => {
+      const mapped = mapProjectedToFriend(ownerId, loc);
+      setFriends((prev) => {
+        const exists = prev.some((f) => f.userId === ownerId);
+        return exists ? prev.map((f) => (f.userId === ownerId ? mapped : f)) : [...prev, mapped];
+      });
+    };
+
+    const handleFriendLiveUpdated = (payload: FriendLocationUpdatedPayload) => {
+      if (!payload?.ownerId || !payload?.location) return;
+      upsertProjectedLocation(payload.ownerId, payload.location);
+    };
+
+    const handleFriendLiveUnavailable = (payload: FriendLocationUnavailablePayload) => {
+      if (!payload?.ownerId) return;
+      setFriends((prev) => prev.filter((f) => f.userId !== payload.ownerId));
+      setSelectedFriend((prev) => (prev?.userId === payload.ownerId ? null : prev));
+    };
+
     const applyRealtimePayload = (
       payload: LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }
     ) => {
@@ -121,12 +225,11 @@ export default function FriendMapScreen() {
                 : f
             );
           }
-          const meta = friendList.find((item) => item.user.id === targetId);
           return [
             ...prev,
             {
               userId: targetId,
-              name: meta?.user.name ?? targetId,
+              name: `#${targetId.slice(0, 6)}`,
               lat,
               lng,
               accuracy,
@@ -144,51 +247,50 @@ export default function FriendMapScreen() {
         .getProjectedLocation({ ownerId: targetId, scope: 'friends' })
         .then((loc) => {
           if (!loc) return;
-          const meta = friendList.find((item) => item.user.id === targetId);
-          const updatedAt = new Date(loc.recordedAt);
-          setFriends((prev) => {
-            const exists = prev.some((f) => f.userId === targetId);
-            const nextItem: Friend = {
-              userId: targetId,
-              name: meta?.user.name ?? targetId,
-              lat: loc.latitude,
-              lng: loc.longitude,
-              accuracy: loc.accuracy,
-              updatedAt,
-              isStale: false,
-              precision: loc.isApproximate ? 'approximate' : 'precise',
-            };
-            return exists
-              ? prev.map((f) => (f.userId === targetId ? nextItem : f))
-              : [...prev, nextItem];
-          });
+          upsertProjectedLocation(targetId, loc);
         })
         .catch(() => {});
     };
 
-    on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>(
-      'location:updated',
-      applyRealtimePayload
-    );
-    on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>(
-      'LocationUpdated',
-      applyRealtimePayload
-    );
-    on<LocationUpdatedPayload & { precision?: 'precise' | 'approximate' }>(
-      'LocationUpdated.v1',
-      applyRealtimePayload
-    );
+    const registered: Parameters<typeof off>[0][] = [];
+    const subscribe = <T,>(event: Parameters<typeof on<T>>[0], handler: (data: T) => void) => {
+      registered.push(event);
+      on(event, handler);
+    };
+
+    subscribe('friend:location:updated', handleFriendLiveUpdated);
+    subscribe('friend:location:unavailable', handleFriendLiveUnavailable);
+    subscribe('location:updated', applyRealtimePayload);
+    subscribe('LocationUpdated', applyRealtimePayload);
+    subscribe('LocationUpdated.v1', applyRealtimePayload);
 
     return () => {
-      off('location:updated');
-      off('LocationUpdated');
-      off('LocationUpdated.v1');
+      registered.forEach((event) => off(event));
     };
-  }, [on, off, socketStatus, friendList]);
+  }, [on, off, socketStatus]);
 
   const handleFriendPress = useSinglePress((friend: Friend) => {
     setSelectedFriend(friend);
     setModalVisible(true);
+    void locationService
+      .checkPermission({ ownerId: friend.userId, scope: 'friends' })
+      .then((perm) => {
+        if (!perm.allowed || !perm.precision) return;
+        const nextPrecision = perm.precision;
+        setSelectedFriend((prev) =>
+          prev && prev.userId === friend.userId
+            ? { ...prev, precision: nextPrecision }
+            : prev
+        );
+        setFriends((prev) =>
+          prev.map((item) =>
+            item.userId === friend.userId
+              ? { ...item, precision: nextPrecision }
+              : item
+          )
+        );
+      })
+      .catch(() => {});
   }, 400);
 
   const handleCenterMyLocation = useSinglePress(async () => {
@@ -204,6 +306,9 @@ export default function FriendMapScreen() {
         if (pos) {
           latitude = pos.coords.latitude;
           longitude = pos.coords.longitude;
+          if (isEffectiveSharingActive()) {
+            void publishSingleSample();
+          }
         }
       }
     } catch {
@@ -247,7 +352,7 @@ export default function FriendMapScreen() {
   const activeError =
     locationError ??
     publishError ??
-    (friendsState.status === 'error' ? friendsState.error : null);
+    (!hasLoadedLiveLocations && friendsState.status === 'error' ? friendsState.error : null);
 
   const myPrivacyLabel = useMemo(() => {
     if (!isEffectiveSharingActive()) return t('fe2.map.my_status_off');
@@ -305,6 +410,20 @@ export default function FriendMapScreen() {
         </View>
       )}
 
+      {isInitialLoading && displayedFriends.length === 0 && (
+        <View
+          style={[
+            styles.loadingBanner,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <SkeletonBox width={14} height={14} borderRadius={7} />
+          <Text style={[styles.loadingBannerText, { color: colors.subtext }]}>
+            {t('fe2.map.loading_live_locations')}
+          </Text>
+        </View>
+      )}
+
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
@@ -316,7 +435,7 @@ export default function FriendMapScreen() {
           longitudeDelta: 0.02,
         }}
       >
-        {friends.map((friend) => (
+        {displayedFriends.map((friend) => (
           <FriendMarker key={friend.userId} friend={friend} onPress={handleFriendPress} />
         ))}
       </MapView>
@@ -364,8 +483,8 @@ export default function FriendMapScreen() {
 
       {/* Friend Detail Bottom Sheet Modal */}
       <FriendInfoModal
-        visible={modalVisible}
-        friend={selectedFriend}
+        visible={isSelectedFriendVisible}
+        friend={activeSelectedFriend}
         onClose={() => setModalVisible(false)}
       />
     </View>
@@ -376,6 +495,15 @@ const makeStyles = (c: ReturnType<typeof import('@/hooks/useTheme').useTheme>['c
   StyleSheet.create({
     container: { flex: 1 },
     map: { flex: 1 },
+    loadingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+    },
+    loadingBannerText: { fontSize: 12, fontWeight: '500' },
     statusBar: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -78,7 +78,7 @@ export interface MemberEtaItem {
 }
 
 export interface MatchedTagItem {
-  tagCode: 'coffee' | 'food' | 'movie' | 'mall' | 'park' | 'entertainment' | 'quiet' | 'parking';
+  tagCode: string;
   level: 'high' | 'normal' | 'avoid';
   weight: number;
 }
